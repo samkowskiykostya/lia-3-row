@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Deploy script for Lia Raskraska Android app
+# Deploy script for Match-3 Tower Defense Android app
 # Deploys APK to a physical device connected via WiFi or USB
 
 set -e
 
-echo "=== Deploying Lia Raskraska Android App ==="
+echo "=== Deploying Match-3 Android Game ==="
 
 # Check if ANDROID_HOME is set
 if [ -z "$ANDROID_HOME" ]; then
@@ -14,10 +14,12 @@ if [ -z "$ANDROID_HOME" ]; then
         export ANDROID_HOME="$HOME/Library/Android/sdk"
     elif [ -d "$HOME/Android/Sdk" ]; then
         export ANDROID_HOME="$HOME/Android/Sdk"
-    else
-        echo "Error: ANDROID_HOME is not set. Please set it to your Android SDK location."
-        exit 1
     fi
+fi
+
+if [ -z "$ANDROID_HOME" ]; then
+    echo "Error: ANDROID_HOME is not set. Please set it to your Android SDK location."
+    exit 1
 fi
 
 # Add platform-tools to PATH
@@ -245,9 +247,9 @@ adb $ADB_TARGET install -r "$APK_PATH"
 # Launch the app
 echo ""
 echo "Launching app..."
-adb $ADB_TARGET shell am start -n com.lia.raskraska/.ui.MainActivity
+adb $ADB_TARGET shell am start -n com.match3.game/.ui.MainActivity
 
 echo ""
 echo "=== Deployment Complete ==="
 echo "App is now running on your device."
-echo "To view logs: adb logcat -s LiaRaskraska:*"
+echo "To view logs: adb logcat -s Match3Game:*"

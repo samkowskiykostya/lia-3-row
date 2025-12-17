@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Build script for Lia Raskraska Android app
+# Build script for Match-3 Tower Defense Android app
 set -e
 
-echo "=== Building Lia Raskraska Android App ==="
+echo "=== Building Match-3 Android Game ==="
 
 # Check if ANDROID_HOME is set
 if [ -z "$ANDROID_HOME" ]; then
@@ -11,10 +11,12 @@ if [ -z "$ANDROID_HOME" ]; then
         export ANDROID_HOME="$HOME/Library/Android/sdk"
     elif [ -d "$HOME/Android/Sdk" ]; then
         export ANDROID_HOME="$HOME/Android/Sdk"
-    else
-        echo "Error: ANDROID_HOME is not set. Please set it to your Android SDK location."
-        exit 1
     fi
+fi
+
+if [ -z "$ANDROID_HOME" ]; then
+    echo "Error: ANDROID_HOME is not set. Please set it to your Android SDK location."
+    exit 1
 fi
 
 echo "Using ANDROID_HOME: $ANDROID_HOME"

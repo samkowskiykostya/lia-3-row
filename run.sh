@@ -1,23 +1,23 @@
 #!/bin/bash
 
-# Run script for Lia Raskraska Android app
-# This script builds the APK and installs it on an emulator or connected device
+# Run script for Match-3 Tower Defense Android app
+# Builds the APK and installs it on an emulator or connected device
 
 set -e
 
-echo "=== Running Lia Raskraska Android App ==="
+echo "=== Running Match-3 Android Game ==="
 
-# Check if ANDROID_HOME is set
 if [ -z "$ANDROID_HOME" ]; then
-    # Try common locations
     if [ -d "$HOME/Library/Android/sdk" ]; then
         export ANDROID_HOME="$HOME/Library/Android/sdk"
     elif [ -d "$HOME/Android/Sdk" ]; then
         export ANDROID_HOME="$HOME/Android/Sdk"
-    else
-        echo "Error: ANDROID_HOME is not set. Please set it to your Android SDK location."
-        exit 1
     fi
+fi
+
+if [ -z "$ANDROID_HOME" ]; then
+    echo "Error: ANDROID_HOME is not set. Please set it to your Android SDK location."
+    exit 1
 fi
 
 echo "Using ANDROID_HOME: $ANDROID_HOME"
@@ -118,7 +118,6 @@ else
     
     if [ "$DEVICES" -eq 0 ]; then
         echo "No devices connected. Starting emulator..."
-        
         # List available emulators
         EMULATORS=$(emulator -list-avds 2>/dev/null | head -1)
         
@@ -159,8 +158,8 @@ adb $ADB_TARGET install -r "$APK_PATH"
 # Launch the app
 echo ""
 echo "Launching app..."
-adb $ADB_TARGET shell am start -n com.lia.raskraska/.ui.MainActivity
+adb $ADB_TARGET shell am start -n com.match3.game/.ui.MainActivity
 
 echo ""
 echo "=== App is running ==="
-echo "To view logs: adb logcat -s LiaRaskraska:*"
+echo "To view logs: adb logcat -s Match3Game:*"
