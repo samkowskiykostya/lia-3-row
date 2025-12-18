@@ -3,7 +3,8 @@ package com.match3.game.domain.model
 data class Match(
     val positions: Set<Position>,
     val color: BlockColor,
-    val type: MatchType
+    val type: MatchType,
+    val swappedPosition: Position? = null // Position where user swiped TO (for user-initiated matches)
 ) {
     enum class MatchType {
         LINE_3,      // 3 in a row - just clear
@@ -24,14 +25,19 @@ data class Match(
         }
     }
     
+    /**
+     * Get position where special block should be created.
+     * Rules:
+     * - If match was caused by user swap: create at the swapped-to position
+     * - If match was caused by falling blocks: create at bottommost, leftmost position
+     */
     fun getCreationPosition(): Position {
-        // Return the center-most position for special creation
-        val sortedByRow = positions.sortedBy { it.row }
-        val sortedByCol = positions.sortedBy { it.col }
-        val midRow = sortedByRow[sortedByRow.size / 2].row
-        val midCol = sortedByCol[sortedByCol.size / 2].col
-        return positions.minByOrNull { 
-            kotlin.math.abs(it.row - midRow) + kotlin.math.abs(it.col - midCol) 
-        } ?: positions.first()
+        // If user swiped to a position in this match, create special there
+        if (swappedPosition != null && positions.contains(swappedPosition)) {
+            return swappedPosition
+        }
+        
+        // For cascade matches: bottommost row first, then leftmost column
+        return positions.maxWithOrNull(compareBy({ it.row }, { -it.col })) ?: positions.first()
     }
 }

@@ -274,31 +274,8 @@ class SpecialActivator(
                 events.add(GameEvent.DiscoActivated(targetPos, targetColor, destroyed))
             }
             
-            // Bomb + Bomb = 5x5 explosion at TARGET
-            specialType1 == SpecialType.BOMB && specialType2 == SpecialType.BOMB -> {
-                for (p in targetPos.get5x5Area()) {
-                    if (board.isValidPosition(p)) destroyed.add(p)
-                }
-                events.add(GameEvent.BombExploded(targetPos, destroyed))
-            }
-            
-            // Bomb + Propeller = Propeller carries bomb to destination, then explodes
-            specialType1 == SpecialType.BOMB && specialType2 == SpecialType.PROPELLER -> {
-                val propellerPos = if (type1 == SpecialType.PROPELLER) pos1 else pos2
-                val target = board.findNearestSpecial(targetPos) ?: board.getRandomPosition()
-                
-                destroyed.add(pos1)
-                destroyed.add(pos2)
-                
-                for (p in target.get3x3Area()) {
-                    if (board.isValidPosition(p)) destroyed.add(p)
-                }
-                events.add(GameEvent.PropellerCarrying(propellerPos, target, SpecialType.BOMB))
-                events.add(GameEvent.BombExploded(target, destroyed))
-            }
-            
-            // Bomb + Disco = All cleared blocks become bombs
-            specialType1 == SpecialType.BOMB && specialType2 == SpecialType.DISCO_BALL -> {
+            // Disco + Bomb = All cleared blocks become bombs (Disco ordinal=3, Bomb ordinal=5)
+            specialType1 == SpecialType.DISCO_BALL && specialType2 == SpecialType.BOMB -> {
                 val bombPos = if (type1 == SpecialType.BOMB) pos1 else pos2
                 val targetColor = board.getBlock(bombPos)?.color 
                     ?: BlockColor.entries[rng.nextInt(BlockColor.entries.size)]
@@ -324,8 +301,8 @@ class SpecialActivator(
                 events.add(GameEvent.DiscoActivated(targetPos, targetColor, destroyed))
             }
             
-            // Propeller + Disco = All cleared blocks become propellers
-            specialType1 == SpecialType.PROPELLER && specialType2 == SpecialType.DISCO_BALL -> {
+            // Disco + Propeller = All cleared blocks become propellers (Disco ordinal=3, Propeller ordinal=4)
+            specialType1 == SpecialType.DISCO_BALL && specialType2 == SpecialType.PROPELLER -> {
                 val propPos = if (type1 == SpecialType.PROPELLER) pos1 else pos2
                 val targetColor = board.getBlock(propPos)?.color 
                     ?: BlockColor.entries[rng.nextInt(BlockColor.entries.size)]
@@ -352,6 +329,29 @@ class SpecialActivator(
                 }
                 
                 events.add(GameEvent.DiscoActivated(targetPos, targetColor, destroyed))
+            }
+            
+            // Propeller + Bomb = Propeller carries bomb (Propeller ordinal=4, Bomb ordinal=5)
+            specialType1 == SpecialType.PROPELLER && specialType2 == SpecialType.BOMB -> {
+                val propellerPos = if (type1 == SpecialType.PROPELLER) pos1 else pos2
+                val target = board.findNearestSpecial(targetPos) ?: board.getRandomPosition()
+                
+                destroyed.add(pos1)
+                destroyed.add(pos2)
+                
+                for (p in target.get3x3Area()) {
+                    if (board.isValidPosition(p)) destroyed.add(p)
+                }
+                events.add(GameEvent.PropellerCarrying(propellerPos, target, SpecialType.BOMB))
+                events.add(GameEvent.BombExploded(target, destroyed))
+            }
+            
+            // Bomb + Bomb = 5x5 explosion at TARGET
+            specialType1 == SpecialType.BOMB && specialType2 == SpecialType.BOMB -> {
+                for (p in targetPos.get5x5Area()) {
+                    if (board.isValidPosition(p)) destroyed.add(p)
+                }
+                events.add(GameEvent.BombExploded(targetPos, destroyed))
             }
             
             // Disco + Disco = Clear entire board

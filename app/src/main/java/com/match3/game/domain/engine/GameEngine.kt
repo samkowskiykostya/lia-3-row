@@ -66,24 +66,28 @@ class GameEngine(
         val block1 = board.getBlock(pos1)
         val block2 = board.getBlock(pos2)
         
+        // Store special types BEFORE swap for combo detection
+        val special1 = block1?.isSpecial() == true
+        val special2 = block2?.isSpecial() == true
+        val type1 = block1?.specialType ?: SpecialType.NONE
+        val type2 = block2?.specialType ?: SpecialType.NONE
+        
         // Perform swap
         board.setBlock(pos1, block2)
         board.setBlock(pos2, block1)
         
         eventQueue.add(GameEvent.BlocksSwapped(pos1, pos2))
         
-        // Check for special combos first
-        val special1 = block1?.isSpecial() == true
-        val special2 = block2?.isSpecial() == true
-        
+        // Check for special combos first (use original types, pos2 is the target)
         if (special1 && special2) {
-            // Special combo
+            // Special combo - pos1 is source (dragged from), pos2 is target (dragged to)
+            // type1 was at pos1 (now at pos2), type2 was at pos2 (now at pos1)
             val result = specialActivator.activateCombo(
-                pos1, block2!!.specialType,
-                pos2, block1!!.specialType
+                pos1, type1,  // Original block from pos1
+                pos2, type2   // Original block from pos2 (target)
             )
             processActivationResult(result)
-            resolveBoard()
+            resolveBoard(null)
             consumeTurn()
             return true
         }
@@ -99,7 +103,7 @@ class GameEngine(
                 val otherPos = if (special2) pos2 else pos1
                 val result = specialActivator.activateSpecial(specialPos, otherPos)
                 processActivationResult(result)
-                resolveBoard()
+                resolveBoard(null)
                 consumeTurn()
                 return true
             }
@@ -110,8 +114,8 @@ class GameEngine(
             return false
         }
         
-        // Process matches
-        resolveBoard()
+        // Process matches - pos2 is where user swiped TO
+        resolveBoard(pos2)
         consumeTurn()
         
         return true
@@ -128,7 +132,7 @@ class GameEngine(
         if (result.destroyedPositions.isEmpty()) return false
         
         processActivationResult(result)
-        resolveBoard()
+        resolveBoard(null)
         consumeTurn()
         
         return true
@@ -170,8 +174,9 @@ class GameEngine(
         }
     }
     
-    private fun resolveBoard() {
+    private fun resolveBoard(swappedTo: Position?) {
         var cascadeLevel = 0
+        var isFirstPass = true
         
         do {
             // Apply gravity
@@ -186,8 +191,13 @@ class GameEngine(
                 eventQueue.add(GameEvent.BlocksSpawned(spawned))
             }
             
-            // Find matches
-            val matches = matchFinder.findAllMatches()
+            // Find matches - only pass swappedTo on first pass (user-initiated)
+            val matches = if (isFirstPass && swappedTo != null) {
+                matchFinder.findAllMatchesWithSwapInfo(swappedTo)
+            } else {
+                matchFinder.findAllMatches()
+            }
+            isFirstPass = false
             
             if (matches.isEmpty()) {
                 break
@@ -227,6 +237,11 @@ class GameEngine(
         }
         
         val creationPos = match.getCreationPosition()
+        
+        // Emit special forming event BEFORE destroying blocks (for animation)
+        if (specialType != SpecialType.NONE) {
+            eventQueue.add(GameEvent.SpecialForming(match.positions, specialType, creationPos))
+        }
         
         // Destroy matched blocks
         for (pos in match.positions) {
@@ -268,6 +283,15 @@ class GameEngine(
         val newMultiplier = 1.0f + (turnScore / 10) * 0.2f
         if (newMultiplier > multiplier) {
             multiplier = newMultiplier
+            eventQueue.add(GameEvent.MultiplierIncreased(multiplier))
+        }
+        
+        // Check win condition immediately when score is gained (for score mode)
+        if (config.mode == GameMode.SCORE_ACCUMULATION && score >= config.targetScore && !isGameOver) {
+            isGameOver = true
+            isVictory = true
+            val bonus = (score - config.targetScore).coerceAtLeast(0) + turnsRemaining * 5
+            eventQueue.add(GameEvent.GameWon(score, bonus))
         }
     }
     

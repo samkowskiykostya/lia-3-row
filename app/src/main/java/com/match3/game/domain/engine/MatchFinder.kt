@@ -227,4 +227,20 @@ class MatchFinder(private val board: Board) {
     fun findMatchesAt(pos: Position): List<Match> {
         return findAllMatches().filter { pos in it.positions }
     }
+    
+    /**
+     * Find all matches and tag those containing the swapped position
+     */
+    fun findAllMatchesWithSwapInfo(swappedTo: Position?): List<Match> {
+        val matches = findAllMatches()
+        if (swappedTo == null) return matches
+        
+        return matches.map { match ->
+            if (swappedTo in match.positions) {
+                match.copy(swappedPosition = swappedTo)
+            } else {
+                match
+            }
+        }
+    }
 }

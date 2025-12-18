@@ -71,6 +71,16 @@ class BoardView @JvmOverloads constructor(
     private val animatingBlocks = mutableMapOf<Position, BlockAnimation>()
     private val scorePopups = mutableListOf<ScorePopup>()
     private val explosions = mutableListOf<Explosion>()
+    
+    // Highlight state
+    private val highlightedPositions = mutableSetOf<Position>()
+    private var highlightColor: Int = Color.WHITE
+    
+    // Special forming state
+    private val formingPositions = mutableSetOf<Position>()
+    private var formingColor: Int = Color.WHITE
+    private var formingAlpha: Float = 0f
+    private var formingCreationPos: Position? = null
 
     data class BlockAnimation(
         var offsetX: Float = 0f,
@@ -144,6 +154,38 @@ class BoardView @JvmOverloads constructor(
             for (col in 0 until b.width) {
                 val pos = Position(row, col)
                 drawCell(canvas, pos)
+            }
+        }
+        
+        // Draw highlight overlay for matched positions
+        for (pos in highlightedPositions) {
+            val x = boardOffsetX + pos.col * cellSize
+            val y = boardOffsetY + pos.row * cellSize
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = highlightColor
+                alpha = 100
+                style = Paint.Style.FILL
+            }
+            canvas.drawRoundRect(
+                x + 2, y + 2, x + cellSize - 2, y + cellSize - 2,
+                cellSize * 0.15f, cellSize * 0.15f, paint
+            )
+        }
+        
+        // Draw special forming effect
+        if (formingPositions.isNotEmpty() && formingAlpha > 0) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = formingColor
+                alpha = (formingAlpha * 180).toInt()
+                style = Paint.Style.FILL
+            }
+            for (pos in formingPositions) {
+                val x = boardOffsetX + pos.col * cellSize
+                val y = boardOffsetY + pos.row * cellSize
+                canvas.drawRoundRect(
+                    x + 2, y + 2, x + cellSize - 2, y + cellSize - 2,
+                    cellSize * 0.15f, cellSize * 0.15f, paint
+                )
             }
         }
 
@@ -597,13 +639,6 @@ class BoardView @JvmOverloads constructor(
         val endX = boardOffsetX + to.col * cellSize
         val endY = boardOffsetY + to.row * cellSize
 
-        // Draw the carried item emoji during animation
-        val carriedEmoji = when {
-            carryingType.isRocket() -> "🚀"
-            carryingType == SpecialType.BOMB -> "💣"
-            else -> "🌀"
-        }
-
         ValueAnimator.ofFloat(0f, 1f).apply {
             addUpdateListener { animator ->
                 val progress = animator.animatedValue as Float
@@ -622,6 +657,148 @@ class BoardView @JvmOverloads constructor(
                     val y = endY + cellSize / 2
                     explosions.add(Explosion(x, y))
                     onComplete()
+                }
+            })
+            start()
+        }
+    }
+    
+    fun highlightPositions(positions: Set<Position>, color: BlockColor) {
+        highlightedPositions.clear()
+        highlightedPositions.addAll(positions)
+        highlightColor = getColorForBlock(color)
+        invalidate()
+        
+        // Clear highlight after a short delay
+        postDelayed({
+            highlightedPositions.clear()
+            invalidate()
+        }, 150)
+    }
+    
+    fun animateSpecialForming(positions: Set<Position>, type: SpecialType, creationPos: Position, onComplete: () -> Unit) {
+        // Blink the forming blocks with special color
+        val specialColor = when (type) {
+            SpecialType.ROCKET_HORIZONTAL, SpecialType.ROCKET_VERTICAL -> Color.parseColor("#FF6600")
+            SpecialType.BOMB -> Color.parseColor("#FF0000")
+            SpecialType.PROPELLER -> Color.parseColor("#00FFFF")
+            SpecialType.DISCO_BALL -> Color.parseColor("#FF00FF")
+            else -> Color.WHITE
+        }
+        
+        formingPositions.clear()
+        formingPositions.addAll(positions)
+        formingColor = specialColor
+        formingCreationPos = creationPos
+        
+        // Blink animation
+        ValueAnimator.ofFloat(0f, 1f, 0f, 1f, 0f).apply {
+            addUpdateListener { animator ->
+                formingAlpha = animator.animatedValue as Float
+                invalidate()
+            }
+            duration = 400
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    formingPositions.clear()
+                    formingAlpha = 0f
+                    onComplete()
+                }
+            })
+            start()
+        }
+    }
+    
+    fun animateExplosion(center: Position, positions: Set<Position>, onComplete: () -> Unit) {
+        val centerX = boardOffsetX + center.col * cellSize + cellSize / 2
+        val centerY = boardOffsetY + center.row * cellSize + cellSize / 2
+        
+        // Add central explosion
+        explosions.add(Explosion(centerX, centerY))
+        
+        // Animate destruction of all positions
+        for (pos in positions) {
+            animatingBlocks[pos] = BlockAnimation()
+        }
+        
+        val explosionAnimator = ValueAnimator.ofFloat(0f, cellSize * 2).apply {
+            addUpdateListener { animator ->
+                val radius = animator.animatedValue as Float
+                val alpha = 1f - (radius / (cellSize * 2))
+                for (explosion in explosions) {
+                    explosion.radius = radius
+                    explosion.alpha = alpha
+                }
+                for (pos in positions) {
+                    animatingBlocks[pos]?.scale = 1f - (radius / (cellSize * 2))
+                    animatingBlocks[pos]?.alpha = alpha
+                }
+                invalidate()
+            }
+        }
+        
+        explosionAnimator.duration = 350
+        explosionAnimator.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: Animator) {
+                for (pos in positions) {
+                    animatingBlocks.remove(pos)
+                }
+                explosions.clear()
+                onComplete()
+            }
+        })
+        explosionAnimator.start()
+    }
+    
+    fun animateDisco(center: Position, color: BlockColor, positions: Set<Position>, onComplete: () -> Unit) {
+        val discoColor = getColorForBlock(color)
+        
+        // Flash all positions with the disco color
+        for (pos in positions) {
+            animatingBlocks[pos] = BlockAnimation()
+        }
+        
+        ValueAnimator.ofFloat(1f, 0f).apply {
+            addUpdateListener { animator ->
+                val alpha = animator.animatedValue as Float
+                for (pos in positions) {
+                    animatingBlocks[pos]?.alpha = alpha
+                    animatingBlocks[pos]?.scale = alpha
+                }
+                invalidate()
+            }
+            duration = 400
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    for (pos in positions) {
+                        animatingBlocks.remove(pos)
+                    }
+                    onComplete()
+                }
+            })
+            start()
+        }
+    }
+    
+    fun showComboText(type1: SpecialType, type2: SpecialType, position: Position) {
+        val emoji1 = type1.emoji
+        val emoji2 = type2.emoji
+        val x = boardOffsetX + position.col * cellSize + cellSize / 2
+        val y = boardOffsetY + position.row * cellSize + cellSize / 2
+        
+        val popup = ScorePopup(x, y, "$emoji1+$emoji2")
+        scorePopups.add(popup)
+        
+        ValueAnimator.ofFloat(0f, -cellSize * 2f).apply {
+            addUpdateListener { animator ->
+                popup.offsetY = animator.animatedValue as Float
+                popup.alpha = 1f - (abs(popup.offsetY) / (cellSize * 2f))
+                invalidate()
+            }
+            duration = 1000
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    scorePopups.remove(popup)
                 }
             })
             start()
