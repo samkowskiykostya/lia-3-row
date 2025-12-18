@@ -1,5 +1,16 @@
 package com.match3.game.domain.model
 
+import com.match3.game.domain.engine.Board
+
+/**
+ * Wrapper that pairs a game event with the board state AFTER the event occurs.
+ * This allows the UI to animate step-by-step using intermediate board states.
+ */
+data class GameEventWithState(
+    val event: GameEvent,
+    val boardAfter: Board
+)
+
 sealed class GameEvent {
     data class BlocksSwapped(val pos1: Position, val pos2: Position) : GameEvent()
     data class BlocksMatched(val positions: Set<Position>, val color: BlockColor) : GameEvent()

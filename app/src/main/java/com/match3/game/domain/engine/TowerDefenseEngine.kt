@@ -79,8 +79,13 @@ class TowerDefenseEngine(
     var isVictory: Boolean = false
         private set
     
-    private val eventQueue = mutableListOf<GameEvent>()
+    private val eventQueue = mutableListOf<GameEventWithState>()
     private var nextEnemyId = 0
+    
+    /** Helper to emit an event with current board snapshot */
+    private fun emit(event: GameEvent) {
+        eventQueue.add(GameEventWithState(event, playerBoard.copy()))
+    }
     
     companion object {
         const val ENEMY_FIELD_HEIGHT = 4
@@ -97,7 +102,7 @@ class TowerDefenseEngine(
         playerBoard.fillEmptyWithoutMatches()
     }
     
-    fun getEvents(): List<GameEvent> {
+    fun getEvents(): List<GameEventWithState> {
         val events = eventQueue.toList()
         eventQueue.clear()
         return events
@@ -122,7 +127,7 @@ class TowerDefenseEngine(
         playerBoard.setBlock(pos1, block2)
         playerBoard.setBlock(pos2, block1)
         
-        eventQueue.add(GameEvent.BlocksSwapped(pos1, pos2))
+        emit(GameEvent.BlocksSwapped(pos1, pos2))
         
         // Check for special combos
         val special1 = block1?.isSpecial() == true
@@ -181,7 +186,7 @@ class TowerDefenseEngine(
     }
     
     private fun processActivationResult(result: SpecialActivator.ActivationResult) {
-        eventQueue.addAll(result.events)
+        for (e in result.events) emit(e)
         
         val projectilesPerColumn = mutableMapOf<Int, Int>()
         
@@ -196,7 +201,7 @@ class TowerDefenseEngine(
             }
         }
         
-        eventQueue.add(GameEvent.BlocksDestroyed(result.destroyedPositions))
+        emit(GameEvent.BlocksDestroyed(result.destroyedPositions))
         
         // Process projectiles
         for ((col, count) in projectilesPerColumn) {
@@ -218,12 +223,12 @@ class TowerDefenseEngine(
         do {
             val movements = playerBoard.applyGravity()
             if (movements.isNotEmpty()) {
-                eventQueue.add(GameEvent.BlocksFell(movements))
+                emit(GameEvent.BlocksFell(movements))
             }
             
             val spawned = playerBoard.spawnNewBlocks()
             if (spawned.isNotEmpty()) {
-                eventQueue.add(GameEvent.BlocksSpawned(spawned))
+                emit(GameEvent.BlocksSpawned(spawned))
             }
             
             val matches = matchFinder.findAllMatches()
@@ -231,7 +236,7 @@ class TowerDefenseEngine(
             if (matches.isEmpty()) break
             
             cascadeLevel++
-            eventQueue.add(GameEvent.CascadeStarted(cascadeLevel))
+            emit(GameEvent.CascadeStarted(cascadeLevel))
             
             for (match in matches) {
                 processMatch(match)
@@ -240,14 +245,14 @@ class TowerDefenseEngine(
         } while (true)
         
         if (cascadeLevel > 0) {
-            eventQueue.add(GameEvent.CascadeEnded(cascadeLevel))
+            emit(GameEvent.CascadeEnded(cascadeLevel))
         }
         
-        eventQueue.add(GameEvent.BoardStabilized)
+        emit(GameEvent.BoardStabilized)
     }
     
     private fun processMatch(match: Match) {
-        eventQueue.add(GameEvent.BlocksMatched(match.positions, match.color))
+        emit(GameEvent.BlocksMatched(match.positions, match.color))
         
         val specialType = when (match.type) {
             Match.MatchType.LINE_4 -> {
@@ -279,7 +284,7 @@ class TowerDefenseEngine(
             }
         }
         
-        eventQueue.add(GameEvent.BlocksDestroyed(match.positions))
+        emit(GameEvent.BlocksDestroyed(match.positions))
         
         // Process projectiles
         for ((col, count) in projectilesPerColumn) {
@@ -289,12 +294,12 @@ class TowerDefenseEngine(
         if (specialType != SpecialType.NONE) {
             val specialBlock = Block(color = match.color, specialType = specialType)
             playerBoard.setBlock(creationPos, specialBlock)
-            eventQueue.add(GameEvent.SpecialCreated(creationPos, specialType, match.color))
+            emit(GameEvent.SpecialCreated(creationPos, specialType, match.color))
         }
     }
     
     private fun fireProjectiles(col: Int, count: Int) {
-        eventQueue.add(GameEvent.ProjectileFired(col, count))
+        emit(GameEvent.ProjectileFired(col, count))
         
         // Find enemies in this column, sorted by row (closest to gate first)
         val enemiesInColumn = enemies
@@ -310,10 +315,10 @@ class TowerDefenseEngine(
             enemy.hp -= damage
             remainingDamage -= damage
             
-            eventQueue.add(GameEvent.EnemyDamaged(enemy.id, damage, enemy.hp))
+            emit(GameEvent.EnemyDamaged(enemy.id, damage, enemy.hp))
             
             if (enemy.hp <= 0) {
-                eventQueue.add(GameEvent.EnemyDestroyed(enemy.id, Position(enemy.row, enemy.col)))
+                emit(GameEvent.EnemyDestroyed(enemy.id, Position(enemy.row, enemy.col)))
             }
         }
         
@@ -338,7 +343,7 @@ class TowerDefenseEngine(
         // Enemies at gate attack
         processEnemyAttacks()
         
-        eventQueue.add(GameEvent.TurnEnded(turnsRemaining))
+        emit(GameEvent.TurnEnded(turnsRemaining))
         
         checkWinCondition()
     }
@@ -376,7 +381,7 @@ class TowerDefenseEngine(
                 val actualDamage = gate.takeDamage(damage)
                 
                 if (actualDamage > 0) {
-                    eventQueue.add(GameEvent.GateDamaged(actualDamage, gate.durability))
+                    emit(GameEvent.GateDamaged(actualDamage, gate.durability))
                 }
             }
         }
@@ -387,7 +392,7 @@ class TowerDefenseEngine(
         if (gate.durability <= 0) {
             isGameOver = true
             isVictory = false
-            eventQueue.add(GameEvent.GameLost("Gate destroyed!"))
+            emit(GameEvent.GameLost("Gate destroyed!"))
             return
         }
         
@@ -398,7 +403,7 @@ class TowerDefenseEngine(
         if (allEnemiesDefeated && noMoreSpawns && currentTurn > 0) {
             isGameOver = true
             isVictory = true
-            eventQueue.add(GameEvent.GameWon(score, gate.durability))
+            emit(GameEvent.GameWon(score, gate.durability))
             return
         }
         
@@ -406,7 +411,7 @@ class TowerDefenseEngine(
         if (turnsRemaining <= 0 && enemies.any { it.hp > 0 }) {
             isGameOver = true
             isVictory = false
-            eventQueue.add(GameEvent.GameLost("Out of turns with enemies remaining"))
+            emit(GameEvent.GameLost("Out of turns with enemies remaining"))
         }
     }
     

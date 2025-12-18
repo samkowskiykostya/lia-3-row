@@ -7,6 +7,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.match3.game.databinding.ActivityTowerDefenseBinding
+import com.match3.game.domain.engine.Board
 import com.match3.game.domain.model.*
 import com.match3.game.domain.progression.LevelGenerator
 import com.match3.game.data.GameRepository
@@ -50,7 +51,10 @@ class TowerDefenseActivity : AppCompatActivity(), BoardView.BoardInteractionList
 
     private fun setupObservers() {
         viewModel.playerBoard.observe(this) { board ->
-            binding.playerBoardView.board = board
+            // Only update board from observer when not animating
+            if (!isAnimating) {
+                binding.playerBoardView.board = board
+            }
         }
 
         viewModel.enemies.observe(this) { enemies ->
@@ -99,27 +103,34 @@ class TowerDefenseActivity : AppCompatActivity(), BoardView.BoardInteractionList
         viewModel.initGame(config, gate)
     }
 
-    private fun processGameEvents(events: List<GameEvent>) {
+    private fun processGameEvents(events: List<GameEventWithState>) {
         if (events.isEmpty()) return
 
         lifecycleScope.launch {
             isAnimating = true
 
-            for (event in events) {
+            for (eventWithState in events) {
+                val event = eventWithState.event
+                val boardAfter = eventWithState.boardAfter
+                
                 when (event) {
                     is GameEvent.BlocksDestroyed -> {
                         binding.playerBoardView.animateDestroy(event.positions) {}
                         delay(150)
+                        binding.playerBoardView.board = boardAfter
                     }
                     is GameEvent.BlocksFell -> {
                         binding.playerBoardView.animateFall(event.movements) {}
                         delay(100)
+                        binding.playerBoardView.board = boardAfter
                     }
                     is GameEvent.BlocksSpawned -> {
+                        binding.playerBoardView.board = boardAfter
                         binding.playerBoardView.animateSpawn(event.positions) {}
                         delay(150)
                     }
                     is GameEvent.SpecialCreated -> {
+                        binding.playerBoardView.board = boardAfter
                         binding.playerBoardView.animateSpecialCreated(event.position) {}
                         delay(200)
                     }
@@ -141,21 +152,25 @@ class TowerDefenseActivity : AppCompatActivity(), BoardView.BoardInteractionList
                     is GameEvent.RocketFired -> {
                         binding.playerBoardView.animateRocket(event.position, event.isHorizontal) {}
                         delay(200)
+                        binding.playerBoardView.board = boardAfter
                     }
                     is GameEvent.BombExploded -> {
                         binding.playerBoardView.animateDestroy(event.clearedPositions) {}
                         delay(200)
+                        binding.playerBoardView.board = boardAfter
                     }
                     is GameEvent.PropellerFlew -> {
                         binding.playerBoardView.animatePropeller(event.from, event.to) {}
                         delay(300)
+                        binding.playerBoardView.board = boardAfter
                     }
                     is GameEvent.DiscoActivated -> {
                         binding.playerBoardView.animateDestroy(event.clearedPositions) {}
                         delay(300)
+                        binding.playerBoardView.board = boardAfter
                     }
                     is GameEvent.BoardStabilized -> {
-                        binding.playerBoardView.board = viewModel.getPlayerBoard()
+                        binding.playerBoardView.board = boardAfter
                         binding.enemyFieldView.invalidate()
                     }
                     is GameEvent.TurnEnded -> {
@@ -167,7 +182,7 @@ class TowerDefenseActivity : AppCompatActivity(), BoardView.BoardInteractionList
                 }
             }
 
-            binding.playerBoardView.board = viewModel.getPlayerBoard()
+            viewModel.getPlayerBoard()?.let { binding.playerBoardView.board = it }
             binding.enemyFieldView.invalidate()
             isAnimating = false
         }

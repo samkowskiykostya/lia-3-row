@@ -35,8 +35,8 @@ class GameViewModel : ViewModel() {
     private val _gameMode = MutableLiveData<GameMode>()
     val gameMode: LiveData<GameMode> = _gameMode
 
-    private val _gameEvents = MutableLiveData<List<GameEvent>>()
-    val gameEvents: LiveData<List<GameEvent>> = _gameEvents
+    private val _gameEvents = MutableLiveData<List<GameEventWithState>>()
+    val gameEvents: LiveData<List<GameEventWithState>> = _gameEvents
 
     private val _isGameOver = MutableLiveData(false)
     val isGameOver: LiveData<Boolean> = _isGameOver

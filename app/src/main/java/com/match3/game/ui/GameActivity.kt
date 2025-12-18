@@ -7,6 +7,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.match3.game.databinding.ActivityGameBinding
+import com.match3.game.domain.engine.Board
 import com.match3.game.domain.model.*
 import com.match3.game.domain.progression.LevelGenerator
 import com.match3.game.ui.viewmodel.GameViewModel
@@ -64,7 +65,11 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
 
     private fun setupObservers() {
         viewModel.board.observe(this) { board ->
-            binding.boardView.board = board
+            // Only update board from observer when not animating
+            // During animation, board updates come from event snapshots
+            if (!isAnimating) {
+                binding.boardView.board = board
+            }
         }
 
         viewModel.score.observe(this) { score ->
@@ -104,7 +109,7 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
         viewModel.initGame(config)
     }
 
-    private fun processGameEvents(events: List<GameEvent>) {
+    private fun processGameEvents(events: List<GameEventWithState>) {
         if (events.isEmpty()) return
 
         lifecycleScope.launch {
@@ -113,16 +118,19 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
             // Track current score for incremental updates
             var displayedScore = binding.scoreText.text.toString().replace("Score: ", "").toIntOrNull() ?: 0
 
-            for (event in events) {
+            for (eventWithState in events) {
+                val event = eventWithState.event
+                val boardAfter = eventWithState.boardAfter
+                
                 when (event) {
                     is GameEvent.BlocksSwapped -> {
                         binding.boardView.animateSwap(event.pos1, event.pos2) {}
                         delay(250)
-                        // Update board after swap
-                        binding.boardView.board = viewModel.getBoard()
+                        // Update board to state AFTER swap
+                        binding.boardView.board = boardAfter
                     }
                     is GameEvent.BlocksMatched -> {
-                        // Highlight matched blocks briefly
+                        // Highlight matched blocks briefly - board still shows blocks
                         binding.boardView.highlightPositions(event.positions, event.color)
                         delay(150)
                     }
@@ -134,22 +142,23 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
                     is GameEvent.BlocksDestroyed -> {
                         binding.boardView.animateDestroy(event.positions) {}
                         delay(350)
-                        // Update board after destruction
-                        binding.boardView.board = viewModel.getBoard()
+                        // Update board to state AFTER destruction (blocks removed)
+                        binding.boardView.board = boardAfter
                     }
                     is GameEvent.BlocksFell -> {
-                        // Update board BEFORE fall animation so we animate from old to new
-                        binding.boardView.board = viewModel.getBoard()
+                        // Animate fall, then show final positions
                         binding.boardView.animateFall(event.movements) {}
                         delay(300)
+                        binding.boardView.board = boardAfter
                     }
                     is GameEvent.BlocksSpawned -> {
-                        binding.boardView.board = viewModel.getBoard()
+                        // Update board to show new blocks, then animate them appearing
+                        binding.boardView.board = boardAfter
                         binding.boardView.animateSpawn(event.positions) {}
                         delay(300)
                     }
                     is GameEvent.SpecialCreated -> {
-                        binding.boardView.board = viewModel.getBoard()
+                        binding.boardView.board = boardAfter
                         binding.boardView.animateSpecialCreated(event.position) {}
                         delay(400)
                     }
@@ -179,27 +188,27 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
                     is GameEvent.RocketFired -> {
                         binding.boardView.animateRocket(event.position, event.isHorizontal) {}
                         delay(400)
-                        binding.boardView.board = viewModel.getBoard()
+                        binding.boardView.board = boardAfter
                     }
                     is GameEvent.BombExploded -> {
                         binding.boardView.animateExplosion(event.position, event.clearedPositions) {}
                         delay(400)
-                        binding.boardView.board = viewModel.getBoard()
+                        binding.boardView.board = boardAfter
                     }
                     is GameEvent.PropellerFlew -> {
                         binding.boardView.animatePropeller(event.from, event.to) {}
                         delay(500)
-                        binding.boardView.board = viewModel.getBoard()
+                        binding.boardView.board = boardAfter
                     }
                     is GameEvent.PropellerCarrying -> {
                         binding.boardView.animatePropellerCarrying(event.from, event.to, event.carryingType) {}
                         delay(600)
-                        binding.boardView.board = viewModel.getBoard()
+                        binding.boardView.board = boardAfter
                     }
                     is GameEvent.DiscoActivated -> {
                         binding.boardView.animateDisco(event.position, event.color, event.clearedPositions) {}
                         delay(500)
-                        binding.boardView.board = viewModel.getBoard()
+                        binding.boardView.board = boardAfter
                     }
                     is GameEvent.ComboActivated -> {
                         // Show combo text
@@ -219,7 +228,7 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
                     }
                     is GameEvent.BoardStabilized -> {
                         // Final board sync
-                        binding.boardView.board = viewModel.getBoard()
+                        binding.boardView.board = boardAfter
                         delay(100)
                     }
                     is GameEvent.GameWon, is GameEvent.GameLost -> {
@@ -230,8 +239,8 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
                 }
             }
 
-            // Final board update
-            binding.boardView.board = viewModel.getBoard()
+            // Final sync with actual current board state
+            viewModel.getBoard()?.let { binding.boardView.board = it }
             isAnimating = false
         }
     }

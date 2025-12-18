@@ -21,7 +21,7 @@ class GameEngine(
     var isVictory: Boolean = false
         private set
     
-    private val eventQueue = mutableListOf<GameEvent>()
+    private val eventQueue = mutableListOf<GameEventWithState>()
     private val frozenZoneCounters = mutableMapOf<Int, Int>()
     
     init {
@@ -42,10 +42,15 @@ class GameEngine(
         board.fillEmptyWithoutMatches()
     }
     
-    fun getEvents(): List<GameEvent> {
+    fun getEvents(): List<GameEventWithState> {
         val events = eventQueue.toList()
         eventQueue.clear()
         return events
+    }
+    
+    /** Helper to emit an event with current board snapshot */
+    private fun emit(event: GameEvent) {
+        eventQueue.add(GameEventWithState(event, board.copy()))
     }
     
     fun canSwap(pos1: Position, pos2: Position): Boolean {
@@ -76,7 +81,7 @@ class GameEngine(
         board.setBlock(pos1, block2)
         board.setBlock(pos2, block1)
         
-        eventQueue.add(GameEvent.BlocksSwapped(pos1, pos2))
+        emit(GameEvent.BlocksSwapped(pos1, pos2))
         
         // Check for special combos first (use original types, pos2 is the target)
         if (special1 && special2) {
@@ -139,7 +144,7 @@ class GameEngine(
     }
     
     private fun processActivationResult(result: SpecialActivator.ActivationResult) {
-        eventQueue.addAll(result.events)
+        for (e in result.events) emit(e)
         
         // Destroy blocks and damage cells
         for (pos in result.destroyedPositions) {
@@ -154,16 +159,16 @@ class GameEngine(
                     val cell = board.getCell(damagedPos)
                     if (cell != null) {
                         if (cell.type == CellType.NORMAL) {
-                            eventQueue.add(GameEvent.CellCleared(damagedPos, cell.type))
+                            emit(GameEvent.CellCleared(damagedPos, cell.type))
                         } else {
-                            eventQueue.add(GameEvent.CellDamaged(damagedPos, cell.durability))
+                            emit(GameEvent.CellDamaged(damagedPos, cell.durability))
                         }
                     }
                 }
             }
         }
         
-        eventQueue.add(GameEvent.BlocksDestroyed(result.destroyedPositions))
+        emit(GameEvent.BlocksDestroyed(result.destroyedPositions))
         
         // Process chained activations
         for ((chainPos, chainType) in result.chainedActivations) {
@@ -182,13 +187,13 @@ class GameEngine(
             // Apply gravity
             val movements = board.applyGravity()
             if (movements.isNotEmpty()) {
-                eventQueue.add(GameEvent.BlocksFell(movements))
+                emit(GameEvent.BlocksFell(movements))
             }
             
             // Spawn new blocks
             val spawned = board.spawnNewBlocks()
             if (spawned.isNotEmpty()) {
-                eventQueue.add(GameEvent.BlocksSpawned(spawned))
+                emit(GameEvent.BlocksSpawned(spawned))
             }
             
             // Find matches - only pass swappedTo on first pass (user-initiated)
@@ -204,7 +209,7 @@ class GameEngine(
             }
             
             cascadeLevel++
-            eventQueue.add(GameEvent.CascadeStarted(cascadeLevel))
+            emit(GameEvent.CascadeStarted(cascadeLevel))
             
             // Process each match
             for (match in matches) {
@@ -214,15 +219,15 @@ class GameEngine(
         } while (true)
         
         if (cascadeLevel > 0) {
-            eventQueue.add(GameEvent.CascadeEnded(cascadeLevel))
+            emit(GameEvent.CascadeEnded(cascadeLevel))
         }
         
-        eventQueue.add(GameEvent.BoardStabilized)
+        emit(GameEvent.BoardStabilized)
         checkWinCondition()
     }
     
     private fun processMatch(match: Match) {
-        eventQueue.add(GameEvent.BlocksMatched(match.positions, match.color))
+        emit(GameEvent.BlocksMatched(match.positions, match.color))
         
         // Determine if a special should be created
         val specialType = when (match.type) {
@@ -240,7 +245,7 @@ class GameEngine(
         
         // Emit special forming event BEFORE destroying blocks (for animation)
         if (specialType != SpecialType.NONE) {
-            eventQueue.add(GameEvent.SpecialForming(match.positions, specialType, creationPos))
+            emit(GameEvent.SpecialForming(match.positions, specialType, creationPos))
         }
         
         // Destroy matched blocks
@@ -261,13 +266,13 @@ class GameEngine(
             }
         }
         
-        eventQueue.add(GameEvent.BlocksDestroyed(match.positions))
+        emit(GameEvent.BlocksDestroyed(match.positions))
         
         // Create special block at creation position
         if (specialType != SpecialType.NONE) {
             val specialBlock = Block(color = match.color, specialType = specialType)
             board.setBlock(creationPos, specialBlock)
-            eventQueue.add(GameEvent.SpecialCreated(creationPos, specialType, match.color))
+            emit(GameEvent.SpecialCreated(creationPos, specialType, match.color))
         }
     }
     
@@ -277,13 +282,13 @@ class GameEngine(
         val actualPoints = (points * multiplier).toInt()
         score += actualPoints
         turnScore += actualPoints
-        eventQueue.add(GameEvent.ScoreGained(actualPoints, pos, multiplier))
+        emit(GameEvent.ScoreGained(actualPoints, pos, multiplier))
         
         // Update multiplier based on turn score (resets each turn)
         val newMultiplier = 1.0f + (turnScore / 10) * 0.2f
         if (newMultiplier > multiplier) {
             multiplier = newMultiplier
-            eventQueue.add(GameEvent.MultiplierIncreased(multiplier))
+            emit(GameEvent.MultiplierIncreased(multiplier))
         }
         
         // Check win condition immediately when score is gained (for score mode)
@@ -291,7 +296,7 @@ class GameEngine(
             isGameOver = true
             isVictory = true
             val bonus = (score - config.targetScore).coerceAtLeast(0) + turnsRemaining * 5
-            eventQueue.add(GameEvent.GameWon(score, bonus))
+            emit(GameEvent.GameWon(score, bonus))
         }
     }
     
@@ -300,7 +305,7 @@ class GameEngine(
         // Reset multiplier and turn score for next turn
         multiplier = 1.0f
         turnScore = 0
-        eventQueue.add(GameEvent.TurnEnded(turnsRemaining))
+        emit(GameEvent.TurnEnded(turnsRemaining))
         
         if (turnsRemaining <= 0) {
             checkWinCondition()
@@ -315,11 +320,11 @@ class GameEngine(
                     isGameOver = true
                     isVictory = true
                     val bonus = (score - config.targetScore).coerceAtLeast(0) + turnsRemaining * 5
-                    eventQueue.add(GameEvent.GameWon(score, bonus))
+                    emit(GameEvent.GameWon(score, bonus))
                 } else if (turnsRemaining <= 0 && !isGameOver) {
                     isGameOver = true
                     isVictory = false
-                    eventQueue.add(GameEvent.GameLost("Target score not reached"))
+                    emit(GameEvent.GameLost("Target score not reached"))
                 }
             }
             GameMode.CLEAR_SPECIAL_CELLS -> {
@@ -328,11 +333,11 @@ class GameEngine(
                     isGameOver = true
                     isVictory = true
                     val bonus = turnsRemaining * 10
-                    eventQueue.add(GameEvent.GameWon(score, bonus))
+                    emit(GameEvent.GameWon(score, bonus))
                 } else if (turnsRemaining <= 0) {
                     isGameOver = true
                     isVictory = false
-                    eventQueue.add(GameEvent.GameLost("Special cells remaining: $remaining"))
+                    emit(GameEvent.GameLost("Special cells remaining: $remaining"))
                 }
             }
             GameMode.TOWER_DEFENSE -> {

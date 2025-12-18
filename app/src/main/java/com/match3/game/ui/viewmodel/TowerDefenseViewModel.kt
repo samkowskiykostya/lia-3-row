@@ -34,8 +34,8 @@ class TowerDefenseViewModel : ViewModel() {
     private val _currentTurn = MutableLiveData(0)
     val currentTurn: LiveData<Int> = _currentTurn
 
-    private val _gameEvents = MutableLiveData<List<GameEvent>>()
-    val gameEvents: LiveData<List<GameEvent>> = _gameEvents
+    private val _gameEvents = MutableLiveData<List<GameEventWithState>>()
+    val gameEvents: LiveData<List<GameEventWithState>> = _gameEvents
 
     private val _isGameOver = MutableLiveData(false)
     val isGameOver: LiveData<Boolean> = _isGameOver
