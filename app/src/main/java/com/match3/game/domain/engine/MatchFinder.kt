@@ -132,26 +132,68 @@ class MatchFinder(private val board: Board) {
                 
                 val color = centerBlock.color
                 
-                // Check T-shapes (4 orientations)
-                val tPatterns = listOf(
-                    // T pointing down
-                    listOf(Position(row, col-1), Position(row, col), Position(row, col+1), Position(row+1, col)),
-                    // T pointing up
-                    listOf(Position(row, col-1), Position(row, col), Position(row, col+1), Position(row-1, col)),
-                    // T pointing right
-                    listOf(Position(row-1, col), Position(row, col), Position(row+1, col), Position(row, col+1)),
-                    // T pointing left
-                    listOf(Position(row-1, col), Position(row, col), Position(row+1, col), Position(row, col-1))
-                )
-                
-                for (pattern in tPatterns) {
-                    if (pattern.all { pos ->
-                        board.isValidPosition(pos) && 
+                fun isValidColor(pos: Position): Boolean {
+                    return board.isValidPosition(pos) &&
                         board.getBlock(pos)?.color == color &&
                         board.getBlock(pos)?.isSpecial() != true
-                    }) {
-                        matches.add(Match(pattern.toSet(), color, Match.MatchType.T_SHAPE))
-                    }
+                }
+
+                // T pointing down (stem extends downward, horizontal bar spans left+right)
+                val leftPos = Position(row, col - 1)
+                val rightPos = Position(row, col + 1)
+                val down1 = Position(row + 1, col)
+                val down2 = Position(row + 2, col)
+                if (listOf(leftPos, rightPos, down1, down2).all(::isValidColor)) {
+                    matches.add(
+                        Match(
+                            setOf(centerPos, leftPos, rightPos, down1, down2),
+                            color,
+                            Match.MatchType.T_SHAPE
+                        )
+                    )
+                }
+
+                // T pointing up (stem extends upward)
+                val up1 = Position(row - 1, col)
+                val up2 = Position(row - 2, col)
+                if (listOf(leftPos, rightPos, up1, up2).all(::isValidColor)) {
+                    matches.add(
+                        Match(
+                            setOf(centerPos, leftPos, rightPos, up1, up2),
+                            color,
+                            Match.MatchType.T_SHAPE
+                        )
+                    )
+                }
+
+                // Recompute vertical neighbors for horizontal stem orientations
+                val upNeighbor = Position(row - 1, col)
+                val downNeighbor = Position(row + 1, col)
+
+                // T pointing right (stem extends to the right)
+                val right1 = Position(row, col + 1)
+                val right2 = Position(row, col + 2)
+                if (listOf(upNeighbor, downNeighbor, right1, right2).all(::isValidColor)) {
+                    matches.add(
+                        Match(
+                            setOf(centerPos, upNeighbor, downNeighbor, right1, right2),
+                            color,
+                            Match.MatchType.T_SHAPE
+                        )
+                    )
+                }
+
+                // T pointing left (stem extends to the left)
+                val left1 = Position(row, col - 1)
+                val left2 = Position(row, col - 2)
+                if (listOf(upNeighbor, downNeighbor, left1, left2).all(::isValidColor)) {
+                    matches.add(
+                        Match(
+                            setOf(centerPos, upNeighbor, downNeighbor, left1, left2),
+                            color,
+                            Match.MatchType.T_SHAPE
+                        )
+                    )
                 }
                 
                 // Check L-shapes (4 orientations)
