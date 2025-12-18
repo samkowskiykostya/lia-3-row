@@ -36,11 +36,38 @@ class MainActivity : AppCompatActivity() {
         setupShopRecyclerView()
         setupObservers()
         setupClickListeners()
+        
+        // Check if there's a game in progress and restore it
+        checkAndRestoreGame()
     }
 
     override fun onResume() {
         super.onResume()
         viewModel.loadProgress()
+    }
+    
+    private fun checkAndRestoreGame() {
+        val repository = com.match3.game.data.GameRepository(this)
+        if (repository.hasGameInProgress()) {
+            val levelNumber = repository.getGameInProgressLevel()
+            val gameMode = repository.getGameInProgressMode()
+            
+            // Resume the game
+            val intent = when (gameMode) {
+                "TOWER_DEFENSE" -> {
+                    Intent(this, TowerDefenseActivity::class.java).apply {
+                        putExtra(EXTRA_LEVEL_NUMBER, levelNumber)
+                    }
+                }
+                else -> {
+                    Intent(this, GameActivity::class.java).apply {
+                        putExtra(EXTRA_LEVEL_NUMBER, levelNumber)
+                        putExtra(EXTRA_GAME_MODE, gameMode)
+                    }
+                }
+            }
+            startActivityForResult(intent, REQUEST_GAME)
+        }
     }
 
     private fun setupShopRecyclerView() {
@@ -141,6 +168,10 @@ class MainActivity : AppCompatActivity() {
         
         // Use a life when starting a level
         viewModel.useLife()
+        
+        // Save game in progress state
+        val repository = com.match3.game.data.GameRepository(this)
+        repository.saveGameInProgress(config.levelNumber, config.mode.name)
 
         val intent = when (config.mode) {
             GameMode.TOWER_DEFENSE -> {
@@ -162,6 +193,10 @@ class MainActivity : AppCompatActivity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        
+        // Clear game in progress state
+        val repository = com.match3.game.data.GameRepository(this)
+        repository.clearGameInProgress()
 
         if (requestCode == REQUEST_GAME && resultCode == RESULT_OK) {
             val reward = data?.getIntExtra(RESULT_REWARD, 0) ?: 0
@@ -173,6 +208,7 @@ class MainActivity : AppCompatActivity() {
             if (victory) {
                 Toast.makeText(this, "🎉 Level Complete! +$reward coins", Toast.LENGTH_LONG).show()
             } else {
+                // Life was already used when starting - no additional penalty
                 Toast.makeText(this, "😢 Level Failed", Toast.LENGTH_SHORT).show()
             }
         }

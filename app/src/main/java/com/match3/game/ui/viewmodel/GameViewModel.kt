@@ -95,11 +95,33 @@ class GameViewModel : ViewModel() {
         val engine = gameEngine ?: return
         val events = engine.getEvents()
 
+        // Post events - UI will animate through them step by step
+        // Do NOT update board here - let UI use snapshots from events
         _gameEvents.value = events
-        updateState()
+        
+        // Update non-board state (score, turns, etc will be updated via events)
+        updateNonBoardState()
+    }
 
-        // Small delay to allow animations
-        delay(50)
+    /** Update state that doesn't affect visual board (game over, victory, etc) */
+    private fun updateNonBoardState() {
+        val engine = gameEngine ?: return
+        _isGameOver.value = engine.isGameOver
+        _isVictory.value = engine.isVictory
+        _walletReward.value = engine.getWalletReward()
+    }
+    
+    /** Full state update - only call when not animating */
+    fun syncFullState() {
+        val engine = gameEngine ?: return
+        _board.value = engine.board
+        _score.value = engine.score
+        _turnsRemaining.value = engine.turnsRemaining
+        _multiplier.value = engine.multiplier
+        _specialCellsRemaining.value = engine.board.getSpecialCellsRemaining()
+        _isGameOver.value = engine.isGameOver
+        _isVictory.value = engine.isVictory
+        _walletReward.value = engine.getWalletReward()
     }
 
     private fun updateState() {

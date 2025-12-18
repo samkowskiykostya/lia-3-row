@@ -16,15 +16,20 @@ class GameRepository(context: Context) {
         private const val KEY_PLAYER_PROGRESS = "player_progress"
         private const val KEY_CURRENT_LEVEL = "current_level"
         private const val KEY_WALLET = "wallet"
+        private const val KEY_LIVES = "lives"
         private const val KEY_GATE_MATERIAL = "gate_material"
         private const val KEY_GATE_DURABILITY = "gate_durability"
         private const val KEY_OWNED_PERKS = "owned_perks"
+        private const val KEY_IN_GAME = "in_game"
+        private const val KEY_GAME_LEVEL = "game_level"
+        private const val KEY_GAME_MODE = "game_mode"
     }
     
     fun saveProgress(progress: PlayerProgress) {
         prefs.edit().apply {
             putInt(KEY_CURRENT_LEVEL, progress.currentLevel)
             putInt(KEY_WALLET, progress.wallet)
+            putInt(KEY_LIVES, progress.lives)
             putString(KEY_GATE_MATERIAL, progress.gateMaterial.name)
             putInt(KEY_GATE_DURABILITY, progress.gateDurability)
             putString(KEY_OWNED_PERKS, gson.toJson(progress.ownedPerks))
@@ -35,6 +40,7 @@ class GameRepository(context: Context) {
     fun loadProgress(): PlayerProgress {
         val currentLevel = prefs.getInt(KEY_CURRENT_LEVEL, 1)
         val wallet = prefs.getInt(KEY_WALLET, 0)
+        val lives = prefs.getInt(KEY_LIVES, 5)
         val gateMaterialName = prefs.getString(KEY_GATE_MATERIAL, GateMaterial.WOOD.name)
         val gateMaterial = try {
             GateMaterial.valueOf(gateMaterialName!!)
@@ -55,10 +61,46 @@ class GameRepository(context: Context) {
         return PlayerProgress(
             currentLevel = currentLevel,
             wallet = wallet,
+            lives = lives,
             gateMaterial = gateMaterial,
             gateDurability = gateDurability,
             ownedPerks = ownedPerks
         )
+    }
+    
+    /** Save that player is currently in a game */
+    fun saveGameInProgress(levelNumber: Int, gameMode: String) {
+        prefs.edit().apply {
+            putBoolean(KEY_IN_GAME, true)
+            putInt(KEY_GAME_LEVEL, levelNumber)
+            putString(KEY_GAME_MODE, gameMode)
+            apply()
+        }
+    }
+    
+    /** Clear game in progress state */
+    fun clearGameInProgress() {
+        prefs.edit().apply {
+            putBoolean(KEY_IN_GAME, false)
+            remove(KEY_GAME_LEVEL)
+            remove(KEY_GAME_MODE)
+            apply()
+        }
+    }
+    
+    /** Check if there's a game in progress */
+    fun hasGameInProgress(): Boolean {
+        return prefs.getBoolean(KEY_IN_GAME, false)
+    }
+    
+    /** Get the level number of game in progress */
+    fun getGameInProgressLevel(): Int {
+        return prefs.getInt(KEY_GAME_LEVEL, 1)
+    }
+    
+    /** Get the game mode of game in progress */
+    fun getGameInProgressMode(): String {
+        return prefs.getString(KEY_GAME_MODE, "SCORE_ACCUMULATION") ?: "SCORE_ACCUMULATION"
     }
     
     fun resetProgress() {

@@ -23,6 +23,7 @@ class GameEngine(
     
     private val eventQueue = mutableListOf<GameEventWithState>()
     private val frozenZoneCounters = mutableMapOf<Int, Int>()
+    private val newlyCreatedSpecials = mutableSetOf<Position>() // Specials created this turn - can't detonate
     
     init {
         rng = SeededRandom(config.seed)
@@ -253,13 +254,17 @@ class GameEngine(
             val block = board.getBlock(pos)
             if (block != null) {
                 // Check if this block is special and should chain
-                if (block.isSpecial() && pos != creationPos) {
+                // BUT don't chain specials that were just created this turn
+                if (block.isSpecial() && pos != creationPos && !newlyCreatedSpecials.contains(pos)) {
                     val result = specialActivator.activateSpecial(pos)
                     processActivationResult(result)
                 }
                 
                 addScore(1, pos)
                 board.setBlock(pos, null)
+                
+                // Remove from newly created if it was there
+                newlyCreatedSpecials.remove(pos)
                 
                 // Damage adjacent special cells
                 board.damageAdjacentCells(pos, match.color)
@@ -272,6 +277,7 @@ class GameEngine(
         if (specialType != SpecialType.NONE) {
             val specialBlock = Block(color = match.color, specialType = specialType)
             board.setBlock(creationPos, specialBlock)
+            newlyCreatedSpecials.add(creationPos) // Mark as newly created - can't detonate this turn
             emit(GameEvent.SpecialCreated(creationPos, specialType, match.color))
         }
     }
@@ -305,6 +311,8 @@ class GameEngine(
         // Reset multiplier and turn score for next turn
         multiplier = 1.0f
         turnScore = 0
+        // Clear newly created specials - they can now detonate on next turn
+        newlyCreatedSpecials.clear()
         emit(GameEvent.TurnEnded(turnsRemaining))
         
         if (turnsRemaining <= 0) {

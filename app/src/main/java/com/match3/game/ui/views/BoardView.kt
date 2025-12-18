@@ -65,7 +65,14 @@ class BoardView @JvmOverloads constructor(
     private var touchStartX: Float = 0f
     private var touchStartY: Float = 0f
     private var selectedPos: Position? = null
-    private val swipeThreshold = 50f
+    private var isDragging: Boolean = false
+    private var dragOffsetX: Float = 0f
+    private var dragOffsetY: Float = 0f
+    private var dragTargetPos: Position? = null
+    private val swipeThreshold = 30f  // Reduced for more responsive dragging
+    
+    // Callback for swap attempt result
+    var onSwapAttempt: ((pos1: Position, pos2: Position, onResult: (Boolean) -> Unit) -> Unit)? = null
 
     // Animations
     private val animatingBlocks = mutableMapOf<Position, BlockAnimation>()
@@ -322,44 +329,202 @@ class BoardView @JvmOverloads constructor(
                 touchStartX = event.x
                 touchStartY = event.y
                 selectedPos = getTouchedPosition(event.x, event.y)
+                isDragging = false
+                dragOffsetX = 0f
+                dragOffsetY = 0f
+                dragTargetPos = null
                 invalidate()
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val pos = selectedPos ?: return true
+                val deltaX = event.x - touchStartX
+                val deltaY = event.y - touchStartY
+                
+                // Start dragging if threshold exceeded
+                if (!isDragging && (abs(deltaX) > swipeThreshold || abs(deltaY) > swipeThreshold)) {
+                    isDragging = true
+                }
+                
+                if (isDragging) {
+                    // Determine drag direction (lock to one axis)
+                    if (abs(deltaX) > abs(deltaY)) {
+                        // Horizontal drag - clamp to one cell
+                        dragOffsetX = deltaX.coerceIn(-cellSize, cellSize)
+                        dragOffsetY = 0f
+                        dragTargetPos = if (dragOffsetX > cellSize * 0.3f) {
+                            Position(pos.row, pos.col + 1)
+                        } else if (dragOffsetX < -cellSize * 0.3f) {
+                            Position(pos.row, pos.col - 1)
+                        } else null
+                    } else {
+                        // Vertical drag - clamp to one cell
+                        dragOffsetX = 0f
+                        dragOffsetY = deltaY.coerceIn(-cellSize, cellSize)
+                        dragTargetPos = if (dragOffsetY > cellSize * 0.3f) {
+                            Position(pos.row + 1, pos.col)
+                        } else if (dragOffsetY < -cellSize * 0.3f) {
+                            Position(pos.row - 1, pos.col)
+                        } else null
+                    }
+                    
+                    // Update animation for dragged block
+                    animatingBlocks[pos] = BlockAnimation(offsetX = dragOffsetX, offsetY = dragOffsetY)
+                    
+                    // Also move target block in opposite direction
+                    dragTargetPos?.let { target ->
+                        if (board?.isValidPosition(target) == true) {
+                            animatingBlocks[target] = BlockAnimation(offsetX = -dragOffsetX, offsetY = -dragOffsetY)
+                        }
+                    }
+                    
+                    invalidate()
+                }
                 return true
             }
             MotionEvent.ACTION_UP -> {
-                val pos = getTouchedPosition(touchStartX, touchStartY)
-                if (pos != null) {
-                    val deltaX = event.x - touchStartX
-                    val deltaY = event.y - touchStartY
-
-                    if (abs(deltaX) > swipeThreshold || abs(deltaY) > swipeThreshold) {
-                        // Swipe detected
-                        val targetPos = when {
-                            abs(deltaX) > abs(deltaY) -> {
-                                if (deltaX > 0) Position(pos.row, pos.col + 1)
-                                else Position(pos.row, pos.col - 1)
+                val pos = selectedPos
+                
+                if (pos != null && isDragging && dragTargetPos != null) {
+                    val target = dragTargetPos!!
+                    
+                    // Check if target is valid
+                    if (board?.isValidPosition(target) == true) {
+                        // Try the swap - use callback to check if valid
+                        if (onSwapAttempt != null) {
+                            // Animate to final position first
+                            val finalOffsetX = (target.col - pos.col) * cellSize
+                            val finalOffsetY = (target.row - pos.row) * cellSize
+                            
+                            animatingBlocks[pos] = BlockAnimation(offsetX = dragOffsetX, offsetY = dragOffsetY)
+                            animatingBlocks[target] = BlockAnimation(offsetX = -dragOffsetX, offsetY = -dragOffsetY)
+                            
+                            // Complete the swap animation
+                            animateSwapCompletion(pos, target, dragOffsetX, dragOffsetY) { 
+                                // After animation, notify listener
+                                listener?.onSwap(pos, target)
                             }
-                            else -> {
-                                if (deltaY > 0) Position(pos.row + 1, pos.col)
-                                else Position(pos.row - 1, pos.col)
-                            }
+                        } else {
+                            listener?.onSwap(pos, target)
+                            resetDragState()
                         }
-                        listener?.onSwap(pos, targetPos)
                     } else {
-                        // Tap detected
-                        listener?.onTap(pos)
+                        // Invalid target - snap back
+                        animateSnapBack(pos, dragTargetPos)
                     }
+                } else if (pos != null && !isDragging) {
+                    // Tap detected
+                    listener?.onTap(pos)
+                    resetDragState()
+                } else {
+                    resetDragState()
                 }
+                
                 selectedPos = null
-                invalidate()
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
+                selectedPos?.let { pos ->
+                    animateSnapBack(pos, dragTargetPos)
+                }
                 selectedPos = null
-                invalidate()
                 return true
             }
         }
         return super.onTouchEvent(event)
+    }
+    
+    private fun resetDragState() {
+        isDragging = false
+        dragOffsetX = 0f
+        dragOffsetY = 0f
+        dragTargetPos = null
+        animatingBlocks.clear()
+        invalidate()
+    }
+    
+    private fun animateSwapCompletion(pos: Position, target: Position, currentOffsetX: Float, currentOffsetY: Float, onComplete: () -> Unit) {
+        val finalOffsetX = (target.col - pos.col) * cellSize
+        val finalOffsetY = (target.row - pos.row) * cellSize
+        
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            addUpdateListener { animator ->
+                val progress = animator.animatedValue as Float
+                val offsetX = currentOffsetX + (finalOffsetX - currentOffsetX) * progress
+                val offsetY = currentOffsetY + (finalOffsetY - currentOffsetY) * progress
+                animatingBlocks[pos] = BlockAnimation(offsetX = offsetX, offsetY = offsetY)
+                animatingBlocks[target] = BlockAnimation(offsetX = -offsetX, offsetY = -offsetY)
+                invalidate()
+            }
+            duration = 100
+            interpolator = AccelerateDecelerateInterpolator()
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    animatingBlocks.remove(pos)
+                    animatingBlocks.remove(target)
+                    isDragging = false
+                    dragTargetPos = null
+                    onComplete()
+                }
+            })
+            start()
+        }
+    }
+    
+    private fun animateSnapBack(pos: Position, target: Position?) {
+        val startOffsetX = dragOffsetX
+        val startOffsetY = dragOffsetY
+        
+        ValueAnimator.ofFloat(1f, 0f).apply {
+            addUpdateListener { animator ->
+                val progress = animator.animatedValue as Float
+                animatingBlocks[pos] = BlockAnimation(offsetX = startOffsetX * progress, offsetY = startOffsetY * progress)
+                target?.let {
+                    if (board?.isValidPosition(it) == true) {
+                        animatingBlocks[it] = BlockAnimation(offsetX = -startOffsetX * progress, offsetY = -startOffsetY * progress)
+                    }
+                }
+                invalidate()
+            }
+            duration = 150
+            interpolator = OvershootInterpolator()
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    resetDragState()
+                }
+            })
+            start()
+        }
+    }
+    
+    /** Called when a swap was invalid - animate blocks back to original positions */
+    fun animateInvalidSwap(pos1: Position, pos2: Position) {
+        // Blocks are already swapped visually, animate them back
+        val deltaCol = (pos2.col - pos1.col) * cellSize
+        val deltaRow = (pos2.row - pos1.row) * cellSize
+        
+        animatingBlocks[pos1] = BlockAnimation(offsetX = deltaCol, offsetY = deltaRow)
+        animatingBlocks[pos2] = BlockAnimation(offsetX = -deltaCol, offsetY = -deltaRow)
+        
+        ValueAnimator.ofFloat(1f, 0f).apply {
+            addUpdateListener { animator ->
+                val progress = animator.animatedValue as Float
+                animatingBlocks[pos1]?.offsetX = deltaCol * progress
+                animatingBlocks[pos1]?.offsetY = deltaRow * progress
+                animatingBlocks[pos2]?.offsetX = -deltaCol * progress
+                animatingBlocks[pos2]?.offsetY = -deltaRow * progress
+                invalidate()
+            }
+            duration = 150
+            interpolator = OvershootInterpolator()
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    animatingBlocks.remove(pos1)
+                    animatingBlocks.remove(pos2)
+                }
+            })
+            start()
+        }
     }
 
     private fun getTouchedPosition(x: Float, y: Float): Position? {
@@ -498,6 +663,75 @@ class BoardView @JvmOverloads constructor(
                     for ((_, to) in movements) {
                         animatingBlocks.remove(to)
                     }
+                    onComplete()
+                }
+            })
+            start()
+        }
+    }
+    
+    /** Animate blocks falling DOWN (from top to bottom) - board already updated */
+    fun animateFallDown(movements: List<Pair<Position, Position>>, onComplete: () -> Unit) {
+        if (movements.isEmpty()) {
+            onComplete()
+            return
+        }
+
+        // Blocks are now at their final positions (to), animate them coming FROM above (from)
+        for ((from, to) in movements) {
+            // Block fell from 'from' to 'to', so it needs to animate from above
+            val deltaRow = (from.row - to.row) * cellSize  // Negative because from.row < to.row (falling down)
+            animatingBlocks[to] = BlockAnimation(offsetY = deltaRow)  // Start above final position
+        }
+
+        ValueAnimator.ofFloat(1f, 0f).apply {
+            addUpdateListener { animator ->
+                val progress = animator.animatedValue as Float
+                for ((from, to) in movements) {
+                    val deltaRow = (from.row - to.row) * cellSize
+                    animatingBlocks[to]?.offsetY = deltaRow * progress
+                }
+                invalidate()
+            }
+            duration = 150
+            interpolator = AccelerateDecelerateInterpolator()
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    for ((_, to) in movements) {
+                        animatingBlocks.remove(to)
+                    }
+                    onComplete()
+                }
+            })
+            start()
+        }
+    }
+    
+    /** Quick blink animation for matched blocks - turn gray briefly */
+    fun animateMatchedBlink(positions: Set<Position>, onComplete: () -> Unit) {
+        if (positions.isEmpty()) {
+            onComplete()
+            return
+        }
+        
+        highlightedPositions.clear()
+        highlightedPositions.addAll(positions)
+        highlightColor = Color.WHITE
+        
+        // Two quick blinks
+        ValueAnimator.ofFloat(0f, 1f, 0f, 1f, 0f).apply {
+            addUpdateListener { animator ->
+                val value = animator.animatedValue as Float
+                highlightColor = Color.argb(
+                    (value * 200).toInt(),
+                    255, 255, 255
+                )
+                invalidate()
+            }
+            duration = 200
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    highlightedPositions.clear()
                     onComplete()
                 }
             })

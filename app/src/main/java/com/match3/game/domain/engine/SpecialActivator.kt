@@ -319,8 +319,15 @@ class SpecialActivator(
                 }
                 
                 // Each position becomes a propeller and activates
+                // Propeller destroys itself + 4 cells around it (cross pattern), then flies to target
                 for (propP in colorPositions) {
+                    // Destroy propeller position and its cross (4 adjacent cells)
                     destroyed.add(propP)
+                    for (adjPos in propP.getCross()) {
+                        if (board.isValidPosition(adjPos)) destroyed.add(adjPos)
+                    }
+                    
+                    // Then fly to random target and destroy there too
                     val target = board.getRandomPosition()
                     destroyed.add(target)
                     for (adjPos in target.getCross()) {
