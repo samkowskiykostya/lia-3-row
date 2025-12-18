@@ -11,6 +11,7 @@ sealed class GameEvent {
     data class RocketFired(val position: Position, val isHorizontal: Boolean, val clearedPositions: Set<Position>) : GameEvent()
     data class BombExploded(val position: Position, val clearedPositions: Set<Position>) : GameEvent()
     data class PropellerFlew(val from: Position, val to: Position, val clearedPositions: Set<Position>) : GameEvent()
+    data class PropellerCarrying(val from: Position, val to: Position, val carryingType: SpecialType) : GameEvent()
     data class DiscoActivated(val position: Position, val color: BlockColor, val clearedPositions: Set<Position>) : GameEvent()
     data class ComboActivated(val type1: SpecialType, val type2: SpecialType, val position: Position) : GameEvent()
     data class ScoreGained(val points: Int, val position: Position, val multiplier: Float) : GameEvent()

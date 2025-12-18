@@ -1,10 +1,28 @@
 package com.match3.game.domain.progression
 
+import android.content.Context
 import com.match3.game.domain.model.*
 
 object LevelGenerator {
     
-    fun generateLevel(levelNumber: Int): LevelConfig {
+    /**
+     * Generate level config. First checks for custom level in assets/levels.json,
+     * then falls back to procedural generation.
+     */
+    fun generateLevel(levelNumber: Int, context: Context? = null): LevelConfig {
+        // Try to load from file first
+        if (context != null && LevelLoader.hasCustomLevel(context, levelNumber)) {
+            val customLevel = LevelLoader.getLevelConfig(context, levelNumber)
+            if (customLevel != null) return customLevel
+        }
+        
+        return generateProceduralLevel(levelNumber)
+    }
+    
+    /**
+     * Procedurally generate a level when no custom level exists
+     */
+    fun generateProceduralLevel(levelNumber: Int): LevelConfig {
         val seed = levelNumber * 12345L
         val blockIndex = (levelNumber - 1) / 20 // Which block of 20 levels
         val levelInBlock = (levelNumber - 1) % 20

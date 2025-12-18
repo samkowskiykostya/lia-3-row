@@ -90,7 +90,7 @@ class TowerDefenseActivity : AppCompatActivity(), BoardView.BoardInteractionList
     }
 
     private fun initGame() {
-        val config = LevelGenerator.generateLevel(levelNumber)
+        val config = LevelGenerator.generateLevel(levelNumber, this)
         val repository = GameRepository(this)
         val progress = repository.loadProgress()
         val gate = progress.getGate()

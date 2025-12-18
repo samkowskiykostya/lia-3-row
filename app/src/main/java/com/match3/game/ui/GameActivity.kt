@@ -102,7 +102,7 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
     }
 
     private fun initGame() {
-        val config = LevelGenerator.generateLevel(levelNumber)
+        val config = LevelGenerator.generateLevel(levelNumber, this)
         viewModel.initGame(config)
     }
 
@@ -116,47 +116,54 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
                 when (event) {
                     is GameEvent.BlocksSwapped -> {
                         // Swap animation handled by BoardView
+                        delay(200)
                     }
                     is GameEvent.BlocksMatched -> {
                         // Flash effect
+                        delay(100)
                     }
                     is GameEvent.BlocksDestroyed -> {
                         binding.boardView.animateDestroy(event.positions) {}
-                        delay(150)
+                        delay(400)
                     }
                     is GameEvent.BlocksFell -> {
                         binding.boardView.animateFall(event.movements) {}
-                        delay(100)
+                        delay(300)
                     }
                     is GameEvent.BlocksSpawned -> {
                         binding.boardView.animateSpawn(event.positions) {}
-                        delay(150)
+                        delay(350)
                     }
                     is GameEvent.SpecialCreated -> {
                         binding.boardView.animateSpecialCreated(event.position) {}
-                        delay(200)
+                        delay(500)
                     }
                     is GameEvent.ScoreGained -> {
                         binding.boardView.showScorePopup(event.position, event.points, event.multiplier)
                     }
                     is GameEvent.RocketFired -> {
                         binding.boardView.animateRocket(event.position, event.isHorizontal) {}
-                        delay(200)
+                        delay(500)
                     }
                     is GameEvent.BombExploded -> {
                         binding.boardView.animateDestroy(event.clearedPositions) {}
-                        delay(200)
+                        delay(500)
                     }
                     is GameEvent.PropellerFlew -> {
                         binding.boardView.animatePropeller(event.from, event.to) {}
-                        delay(300)
+                        delay(700)
+                    }
+                    is GameEvent.PropellerCarrying -> {
+                        binding.boardView.animatePropellerCarrying(event.from, event.to, event.carryingType) {}
+                        delay(700)
                     }
                     is GameEvent.DiscoActivated -> {
                         binding.boardView.animateDestroy(event.clearedPositions) {}
-                        delay(300)
+                        delay(600)
                     }
                     is GameEvent.CascadeStarted -> {
                         // Could show cascade indicator
+                        delay(150)
                     }
                     is GameEvent.CascadeEnded -> {
                         // Cascade complete
@@ -164,6 +171,7 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
                     is GameEvent.BoardStabilized -> {
                         // Update board view
                         binding.boardView.board = viewModel.getBoard()
+                        delay(100)
                     }
                     else -> {}
                 }

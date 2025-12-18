@@ -57,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupObservers() {
         viewModel.playerProgress.observe(this) { progress ->
             binding.walletText.text = "💰 ${progress.wallet}"
+            binding.livesText.text = "❤️ ${progress.lives}"
             binding.levelNumberText.text = "Level ${progress.currentLevel}"
 
             val material = progress.gateMaterial
@@ -67,6 +68,12 @@ class MainActivity : AppCompatActivity() {
             binding.gateHealthBar.progress = healthPercent
 
             binding.playButton.text = "▶️ Start Level ${progress.currentLevel}"
+            binding.playButton.isEnabled = progress.lives > 0
+            binding.playButton.alpha = if (progress.lives > 0) 1f else 0.5f
+
+            // Show/hide buy life button based on whether lives are full
+            binding.buyLifeButton.visibility = if (progress.lives < progress.maxLives) 
+                android.view.View.VISIBLE else android.view.View.GONE
 
             shopAdapter.playerWallet = progress.wallet
         }
@@ -98,6 +105,14 @@ class MainActivity : AppCompatActivity() {
         binding.playButton.setOnClickListener {
             startGame()
         }
+        
+        binding.buyLifeButton.setOnClickListener {
+            if (viewModel.buyLife()) {
+                Toast.makeText(this, "❤️ Life purchased!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "❌ Not enough coins (10 required)", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun handleShopPurchase(item: ShopItem) {
@@ -117,6 +132,15 @@ class MainActivity : AppCompatActivity() {
     private fun startGame() {
         val config = viewModel.nextLevelConfig.value ?: return
         val progress = viewModel.playerProgress.value ?: return
+        
+        // Check if player has lives
+        if (!viewModel.hasLives()) {
+            Toast.makeText(this, "❌ No lives remaining! Buy more lives.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // Use a life when starting a level
+        viewModel.useLife()
 
         val intent = when (config.mode) {
             GameMode.TOWER_DEFENSE -> {

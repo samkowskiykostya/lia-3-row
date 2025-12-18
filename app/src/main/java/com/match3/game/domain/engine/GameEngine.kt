@@ -256,13 +256,16 @@ class GameEngine(
         }
     }
     
+    private var turnScore: Int = 0 // Score accumulated this turn for multiplier calculation
+    
     private fun addScore(points: Int, pos: Position) {
         val actualPoints = (points * multiplier).toInt()
         score += actualPoints
+        turnScore += actualPoints
         eventQueue.add(GameEvent.ScoreGained(actualPoints, pos, multiplier))
         
-        // Update multiplier every 10 points
-        val newMultiplier = 1.0f + (score / 10) * 0.2f
+        // Update multiplier based on turn score (resets each turn)
+        val newMultiplier = 1.0f + (turnScore / 10) * 0.2f
         if (newMultiplier > multiplier) {
             multiplier = newMultiplier
         }
@@ -270,6 +273,9 @@ class GameEngine(
     
     private fun consumeTurn() {
         turnsRemaining--
+        // Reset multiplier and turn score for next turn
+        multiplier = 1.0f
+        turnScore = 0
         eventQueue.add(GameEvent.TurnEnded(turnsRemaining))
         
         if (turnsRemaining <= 0) {
@@ -280,15 +286,16 @@ class GameEngine(
     private fun checkWinCondition() {
         when (config.mode) {
             GameMode.SCORE_ACCUMULATION -> {
-                if (turnsRemaining <= 0) {
+                // Win immediately when target score is reached
+                if (score >= config.targetScore && !isGameOver) {
                     isGameOver = true
-                    isVictory = score >= config.targetScore
-                    val bonus = if (isVictory) (score - config.targetScore).coerceAtLeast(0) else 0
-                    if (isVictory) {
-                        eventQueue.add(GameEvent.GameWon(score, bonus))
-                    } else {
-                        eventQueue.add(GameEvent.GameLost("Target score not reached"))
-                    }
+                    isVictory = true
+                    val bonus = (score - config.targetScore).coerceAtLeast(0) + turnsRemaining * 5
+                    eventQueue.add(GameEvent.GameWon(score, bonus))
+                } else if (turnsRemaining <= 0 && !isGameOver) {
+                    isGameOver = true
+                    isVictory = false
+                    eventQueue.add(GameEvent.GameLost("Target score not reached"))
                 }
             }
             GameMode.CLEAR_SPECIAL_CELLS -> {

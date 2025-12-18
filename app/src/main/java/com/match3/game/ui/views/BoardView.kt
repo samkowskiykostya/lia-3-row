@@ -577,10 +577,50 @@ class BoardView @JvmOverloads constructor(
                 animatingBlocks[from]?.rotation = progress * 720f
                 invalidate()
             }
-            duration = 400
+            duration = 600
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
                     animatingBlocks.remove(from)
+                    onComplete()
+                }
+            })
+            start()
+        }
+    }
+
+    fun animatePropellerCarrying(from: Position, to: Position, carryingType: SpecialType, onComplete: () -> Unit) {
+        // Animate propeller flying while carrying another special block
+        animatingBlocks[from] = BlockAnimation()
+
+        val startX = boardOffsetX + from.col * cellSize
+        val startY = boardOffsetY + from.row * cellSize
+        val endX = boardOffsetX + to.col * cellSize
+        val endY = boardOffsetY + to.row * cellSize
+
+        // Draw the carried item emoji during animation
+        val carriedEmoji = when {
+            carryingType.isRocket() -> "🚀"
+            carryingType == SpecialType.BOMB -> "💣"
+            else -> "🌀"
+        }
+
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            addUpdateListener { animator ->
+                val progress = animator.animatedValue as Float
+                animatingBlocks[from]?.offsetX = (endX - startX) * progress
+                animatingBlocks[from]?.offsetY = (endY - startY) * progress
+                animatingBlocks[from]?.rotation = progress * 720f
+                invalidate()
+            }
+            duration = 600
+            interpolator = AccelerateDecelerateInterpolator()
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    animatingBlocks.remove(from)
+                    // Add explosion at destination
+                    val x = endX + cellSize / 2
+                    val y = endY + cellSize / 2
+                    explosions.add(Explosion(x, y))
                     onComplete()
                 }
             })

@@ -26,6 +26,40 @@
             android:textSize="24sp"
             android:textStyle="bold" />
 
+        <!-- Lives display with buy button -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/wallet_bg"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            android:layout_marginEnd="8dp">
+
+            <TextView
+                android:id="@+id/livesText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="❤️ 5"
+                android:textColor="@color/game_accent"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/buyLifeButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="+"
+                android:textColor="@color/game_green"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:paddingHorizontal="8dp"
+                android:clickable="true"
+                android:focusable="true" />
+
+        </LinearLayout>
+
         <TextView
             android:id="@+id/walletText"
             android:layout_width="wrap_content"

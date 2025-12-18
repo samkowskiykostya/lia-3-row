@@ -1,0 +1,95 @@
+{
+  "levels": [
+    {
+      "levelNumber": 1,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 25,
+      "targetScore": 1000,
+      "numColors": 4
+    },
+    {
+      "levelNumber": 2,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 25,
+      "targetScore": 150,
+      "numColors": 4
+    },
+    {
+      "levelNumber": 3,
+      "mode": "CLEAR_SPECIAL_CELLS",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 30,
+      "numColors": 4,
+      "specialCells": [
+        {"row": 4, "col": 2, "type": "FROZEN", "durability": 1},
+        {"row": 4, "col": 3, "type": "FROZEN", "durability": 1},
+        {"row": 4, "col": 4, "type": "FROZEN", "durability": 1},
+        {"row": 5, "col": 2, "type": "FROZEN", "durability": 1},
+        {"row": 5, "col": 3, "type": "FROZEN", "durability": 1},
+        {"row": 5, "col": 4, "type": "FROZEN", "durability": 1}
+      ]
+    },
+    {
+      "levelNumber": 5,
+      "mode": "TOWER_DEFENSE",
+      "boardWidth": 7,
+      "boardHeight": 8,
+      "maxTurns": 35,
+      "numColors": 4,
+      "enemies": [
+        {"type": "BASIC", "spawnTurn": 1, "spawnCol": 1, "hp": 3},
+        {"type": "BASIC", "spawnTurn": 1, "spawnCol": 5, "hp": 3},
+        {"type": "BASIC", "spawnTurn": 4, "spawnCol": 3, "hp": 4},
+        {"type": "BASIC", "spawnTurn": 7, "spawnCol": 2, "hp": 4},
+        {"type": "BASIC", "spawnTurn": 7, "spawnCol": 4, "hp": 4},
+        {"type": "CONTROLLER", "spawnTurn": 12, "spawnCol": 3, "hp": 6}
+      ]
+    },
+    {
+      "levelNumber": 10,
+      "mode": "TOWER_DEFENSE",
+      "boardWidth": 7,
+      "boardHeight": 8,
+      "maxTurns": 40,
+      "numColors": 4,
+      "enemies": [
+        {"type": "BASIC", "spawnTurn": 1, "spawnCol": 0, "hp": 4},
+        {"type": "BASIC", "spawnTurn": 1, "spawnCol": 6, "hp": 4},
+        {"type": "BASIC", "spawnTurn": 3, "spawnCol": 2, "hp": 5},
+        {"type": "BASIC", "spawnTurn": 3, "spawnCol": 4, "hp": 5},
+        {"type": "CONTROLLER", "spawnTurn": 6, "spawnCol": 3, "hp": 7},
+        {"type": "BASIC", "spawnTurn": 10, "spawnCol": 1, "hp": 5},
+        {"type": "BASIC", "spawnTurn": 10, "spawnCol": 5, "hp": 5},
+        {"type": "SPAWNER", "spawnTurn": 15, "spawnCol": 3, "hp": 10},
+        {"type": "CONTROLLER", "spawnTurn": 20, "spawnCol": 2, "hp": 8},
+        {"type": "CONTROLLER", "spawnTurn": 20, "spawnCol": 4, "hp": 8}
+      ]
+    },
+    {
+      "levelNumber": 20,
+      "mode": "TOWER_DEFENSE",
+      "boardWidth": 7,
+      "boardHeight": 8,
+      "maxTurns": 50,
+      "numColors": 4,
+      "enemies": [
+        {"type": "BASIC", "spawnTurn": 1, "spawnCol": 1, "hp": 5},
+        {"type": "BASIC", "spawnTurn": 1, "spawnCol": 3, "hp": 5},
+        {"type": "BASIC", "spawnTurn": 1, "spawnCol": 5, "hp": 5},
+        {"type": "CONTROLLER", "spawnTurn": 5, "spawnCol": 2, "hp": 8},
+        {"type": "CONTROLLER", "spawnTurn": 5, "spawnCol": 4, "hp": 8},
+        {"type": "SPAWNER", "spawnTurn": 10, "spawnCol": 1, "hp": 12},
+        {"type": "SPAWNER", "spawnTurn": 10, "spawnCol": 5, "hp": 12},
+        {"type": "BASIC", "spawnTurn": 15, "spawnCol": 0, "hp": 6},
+        {"type": "BASIC", "spawnTurn": 15, "spawnCol": 6, "hp": 6},
+        {"type": "CONTROLLER", "spawnTurn": 20, "spawnCol": 3, "hp": 10},
+        {"type": "BOSS", "spawnTurn": 30, "spawnCol": 3, "hp": 25}
+      ]
+    }
+  ]
+}

@@ -155,6 +155,15 @@ class SpecialActivator(
         return ActivationResult(destroyed, events, chained)
     }
     
+    /**
+     * Activate combo between two special blocks.
+     * @param pos1 The position of the first block (where user started drag)
+     * @param type1 The special type at pos1
+     * @param pos2 The position of the second block (where user dragged to - TARGET)
+     * @param type2 The special type at pos2
+     * 
+     * Combos activate at pos2 (the target/destination position)
+     */
     fun activateCombo(
         pos1: Position, 
         type1: SpecialType, 
@@ -165,61 +174,58 @@ class SpecialActivator(
         val events = mutableListOf<GameEvent>()
         val chained = mutableListOf<Pair<Position, SpecialType>>()
         
-        events.add(GameEvent.ComboActivated(type1, type2, pos1))
+        // pos2 is the TARGET position (where we dragged TO)
+        val targetPos = pos2
         
-        // Normalize combo order for easier matching
-        val (t1, t2, p1, p2) = if (type1.ordinal <= type2.ordinal) {
-            listOf(type1, type2, pos1, pos2)
+        events.add(GameEvent.ComboActivated(type1, type2, targetPos))
+        
+        // Normalize combo order for easier matching, but keep targetPos as activation center
+        val (specialType1, specialType2) = if (type1.ordinal <= type2.ordinal) {
+            type1 to type2
         } else {
-            listOf(type2, type1, pos2, pos1)
-        } as List<Any>
-        
-        val specialType1 = t1 as SpecialType
-        val specialType2 = t2 as SpecialType
-        val position1 = p1 as Position
-        val position2 = p2 as Position
+            type2 to type1
+        }
         
         when {
-            // Rocket + Rocket = Cross (row + column)
+            // Rocket + Rocket = Cross (row + column) at target
             specialType1.isRocket() && specialType2.isRocket() -> {
                 for (col in 0 until board.width) {
-                    destroyed.add(Position(position1.row, col))
+                    destroyed.add(Position(targetPos.row, col))
                 }
                 for (row in 0 until board.height) {
-                    destroyed.add(Position(row, position1.col))
+                    destroyed.add(Position(row, targetPos.col))
                 }
-                events.add(GameEvent.RocketFired(position1, true, destroyed))
+                events.add(GameEvent.RocketFired(targetPos, true, destroyed))
             }
             
-            // Rocket + Bomb = 3-wide cross
+            // Rocket + Bomb = 3-wide cross at target
             specialType1.isRocket() && specialType2 == SpecialType.BOMB -> {
                 for (col in 0 until board.width) {
                     for (r in -1..1) {
-                        val targetPos = Position(position1.row + r, col)
-                        if (board.isValidPosition(targetPos)) {
-                            destroyed.add(targetPos)
-                        }
+                        val p = Position(targetPos.row + r, col)
+                        if (board.isValidPosition(p)) destroyed.add(p)
                     }
                 }
                 for (row in 0 until board.height) {
                     for (c in -1..1) {
-                        val targetPos = Position(row, position1.col + c)
-                        if (board.isValidPosition(targetPos)) {
-                            destroyed.add(targetPos)
-                        }
+                        val p = Position(row, targetPos.col + c)
+                        if (board.isValidPosition(p)) destroyed.add(p)
                     }
                 }
-                events.add(GameEvent.RocketFired(position1, true, destroyed))
+                events.add(GameEvent.RocketFired(targetPos, true, destroyed))
             }
             
-            // Rocket + Propeller = Propeller carries rocket
+            // Rocket + Propeller = Propeller carries rocket to destination, then fires
             specialType1.isRocket() && specialType2 == SpecialType.PROPELLER -> {
-                val target = board.findNearestSpecial(position1) ?: board.getRandomPosition()
-                destroyed.add(position1)
-                destroyed.add(position2)
+                val propellerPos = if (type1 == SpecialType.PROPELLER) pos1 else pos2
+                val rocketType = if (type1.isRocket()) type1 else type2
+                val target = board.findNearestSpecial(targetPos) ?: board.getRandomPosition()
+                
+                destroyed.add(pos1)
+                destroyed.add(pos2)
                 
                 // Fire rocket from target position
-                val isHorizontal = specialType1 == SpecialType.ROCKET_HORIZONTAL
+                val isHorizontal = rocketType == SpecialType.ROCKET_HORIZONTAL
                 if (isHorizontal) {
                     for (col in 0 until board.width) {
                         destroyed.add(Position(target.row, col))
@@ -229,125 +235,123 @@ class SpecialActivator(
                         destroyed.add(Position(row, target.col))
                     }
                 }
-                events.add(GameEvent.PropellerFlew(position2, target, setOf(position2, target)))
+                events.add(GameEvent.PropellerCarrying(propellerPos, target, rocketType))
                 events.add(GameEvent.RocketFired(target, isHorizontal, destroyed))
             }
             
             // Rocket + Disco = All cleared blocks become rockets
             specialType1.isRocket() && specialType2 == SpecialType.DISCO_BALL -> {
-                val targetColor = board.getBlock(position1)?.color 
+                val rocketType = if (type1.isRocket()) type1 else type2
+                val rocketPos = if (type1.isRocket()) pos1 else pos2
+                val targetColor = board.getBlock(rocketPos)?.color 
                     ?: BlockColor.entries[rng.nextInt(BlockColor.entries.size)]
                 
-                destroyed.add(position1)
-                destroyed.add(position2)
+                destroyed.add(pos1)
+                destroyed.add(pos2)
                 
                 val colorPositions = mutableListOf<Position>()
                 for (boardPos in board.getAllPositions()) {
                     val block = board.getBlock(boardPos)
-                    if (block?.color == targetColor && boardPos != position1 && boardPos != position2) {
+                    if (block?.color == targetColor && boardPos != pos1 && boardPos != pos2) {
                         colorPositions.add(boardPos)
                     }
                 }
                 
                 // Each position becomes a rocket and fires
-                for (rocketPos in colorPositions) {
+                for (rocketP in colorPositions) {
                     val isHorizontal = rng.nextBoolean()
                     if (isHorizontal) {
                         for (col in 0 until board.width) {
-                            destroyed.add(Position(rocketPos.row, col))
+                            destroyed.add(Position(rocketP.row, col))
                         }
                     } else {
                         for (row in 0 until board.height) {
-                            destroyed.add(Position(row, rocketPos.col))
+                            destroyed.add(Position(row, rocketP.col))
                         }
                     }
                 }
                 
-                events.add(GameEvent.DiscoActivated(position2, targetColor, destroyed))
+                events.add(GameEvent.DiscoActivated(targetPos, targetColor, destroyed))
             }
             
-            // Bomb + Bomb = 5x5 explosion
+            // Bomb + Bomb = 5x5 explosion at TARGET
             specialType1 == SpecialType.BOMB && specialType2 == SpecialType.BOMB -> {
-                for (targetPos in position1.get5x5Area()) {
-                    if (board.isValidPosition(targetPos)) {
-                        destroyed.add(targetPos)
-                    }
+                for (p in targetPos.get5x5Area()) {
+                    if (board.isValidPosition(p)) destroyed.add(p)
                 }
-                events.add(GameEvent.BombExploded(position1, destroyed))
+                events.add(GameEvent.BombExploded(targetPos, destroyed))
             }
             
-            // Bomb + Propeller = Propeller carries bomb
+            // Bomb + Propeller = Propeller carries bomb to destination, then explodes
             specialType1 == SpecialType.BOMB && specialType2 == SpecialType.PROPELLER -> {
-                val target = board.findNearestSpecial(position1) ?: board.getRandomPosition()
-                destroyed.add(position1)
-                destroyed.add(position2)
+                val propellerPos = if (type1 == SpecialType.PROPELLER) pos1 else pos2
+                val target = board.findNearestSpecial(targetPos) ?: board.getRandomPosition()
                 
-                for (targetPos in target.get3x3Area()) {
-                    if (board.isValidPosition(targetPos)) {
-                        destroyed.add(targetPos)
-                    }
+                destroyed.add(pos1)
+                destroyed.add(pos2)
+                
+                for (p in target.get3x3Area()) {
+                    if (board.isValidPosition(p)) destroyed.add(p)
                 }
-                events.add(GameEvent.PropellerFlew(position2, target, setOf(position2, target)))
+                events.add(GameEvent.PropellerCarrying(propellerPos, target, SpecialType.BOMB))
                 events.add(GameEvent.BombExploded(target, destroyed))
             }
             
             // Bomb + Disco = All cleared blocks become bombs
             specialType1 == SpecialType.BOMB && specialType2 == SpecialType.DISCO_BALL -> {
-                val targetColor = board.getBlock(position1)?.color 
+                val bombPos = if (type1 == SpecialType.BOMB) pos1 else pos2
+                val targetColor = board.getBlock(bombPos)?.color 
                     ?: BlockColor.entries[rng.nextInt(BlockColor.entries.size)]
                 
-                destroyed.add(position1)
-                destroyed.add(position2)
+                destroyed.add(pos1)
+                destroyed.add(pos2)
                 
                 val colorPositions = mutableListOf<Position>()
                 for (boardPos in board.getAllPositions()) {
                     val block = board.getBlock(boardPos)
-                    if (block?.color == targetColor && boardPos != position1 && boardPos != position2) {
+                    if (block?.color == targetColor && boardPos != pos1 && boardPos != pos2) {
                         colorPositions.add(boardPos)
                     }
                 }
                 
                 // Each position becomes a bomb and explodes
-                for (bombPos in colorPositions) {
-                    for (targetPos in bombPos.get3x3Area()) {
-                        if (board.isValidPosition(targetPos)) {
-                            destroyed.add(targetPos)
-                        }
+                for (bombP in colorPositions) {
+                    for (p in bombP.get3x3Area()) {
+                        if (board.isValidPosition(p)) destroyed.add(p)
                     }
                 }
                 
-                events.add(GameEvent.DiscoActivated(position2, targetColor, destroyed))
+                events.add(GameEvent.DiscoActivated(targetPos, targetColor, destroyed))
             }
             
             // Propeller + Disco = All cleared blocks become propellers
             specialType1 == SpecialType.PROPELLER && specialType2 == SpecialType.DISCO_BALL -> {
-                val targetColor = board.getBlock(position1)?.color 
+                val propPos = if (type1 == SpecialType.PROPELLER) pos1 else pos2
+                val targetColor = board.getBlock(propPos)?.color 
                     ?: BlockColor.entries[rng.nextInt(BlockColor.entries.size)]
                 
-                destroyed.add(position1)
-                destroyed.add(position2)
+                destroyed.add(pos1)
+                destroyed.add(pos2)
                 
                 val colorPositions = mutableListOf<Position>()
                 for (boardPos in board.getAllPositions()) {
                     val block = board.getBlock(boardPos)
-                    if (block?.color == targetColor && boardPos != position1 && boardPos != position2) {
+                    if (block?.color == targetColor && boardPos != pos1 && boardPos != pos2) {
                         colorPositions.add(boardPos)
                     }
                 }
                 
                 // Each position becomes a propeller and activates
-                for (propPos in colorPositions) {
-                    destroyed.add(propPos)
+                for (propP in colorPositions) {
+                    destroyed.add(propP)
                     val target = board.getRandomPosition()
                     destroyed.add(target)
                     for (adjPos in target.getCross()) {
-                        if (board.isValidPosition(adjPos)) {
-                            destroyed.add(adjPos)
-                        }
+                        if (board.isValidPosition(adjPos)) destroyed.add(adjPos)
                     }
                 }
                 
-                events.add(GameEvent.DiscoActivated(position2, targetColor, destroyed))
+                events.add(GameEvent.DiscoActivated(targetPos, targetColor, destroyed))
             }
             
             // Disco + Disco = Clear entire board
@@ -355,15 +359,15 @@ class SpecialActivator(
                 for (boardPos in board.getAllPositions()) {
                     destroyed.add(boardPos)
                 }
-                events.add(GameEvent.DiscoActivated(position1, BlockColor.RED, destroyed))
+                events.add(GameEvent.DiscoActivated(targetPos, BlockColor.RED, destroyed))
             }
             
             // Propeller + Propeller = Two propellers fly
             specialType1 == SpecialType.PROPELLER && specialType2 == SpecialType.PROPELLER -> {
-                destroyed.add(position1)
-                destroyed.add(position2)
+                destroyed.add(pos1)
+                destroyed.add(pos2)
                 
-                val target1 = board.findNearestSpecial(position1) ?: board.getRandomPosition()
+                val target1 = board.findNearestSpecial(pos1) ?: board.getRandomPosition()
                 destroyed.add(target1)
                 for (adjPos in target1.getCross()) {
                     if (board.isValidPosition(adjPos)) destroyed.add(adjPos)
@@ -375,14 +379,14 @@ class SpecialActivator(
                     if (board.isValidPosition(adjPos)) destroyed.add(adjPos)
                 }
                 
-                events.add(GameEvent.PropellerFlew(position1, target1, destroyed))
-                events.add(GameEvent.PropellerFlew(position2, target2, destroyed))
+                events.add(GameEvent.PropellerFlew(pos1, target1, destroyed))
+                events.add(GameEvent.PropellerFlew(pos2, target2, destroyed))
             }
         }
         
         // Find any specials in destroyed positions for chaining
         for (destroyedPos in destroyed) {
-            if (destroyedPos != position1 && destroyedPos != position2) {
+            if (destroyedPos != pos1 && destroyedPos != pos2) {
                 val block = board.getBlock(destroyedPos)
                 if (block?.isSpecial() == true) {
                     chained.add(destroyedPos to block.specialType)

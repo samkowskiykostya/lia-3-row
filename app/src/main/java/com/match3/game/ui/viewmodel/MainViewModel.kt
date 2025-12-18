@@ -43,7 +43,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun updateNextLevel() {
         val progress = _playerProgress.value ?: return
-        val config = LevelGenerator.generateLevel(progress.currentLevel)
+        val config = LevelGenerator.generateLevel(progress.currentLevel, getApplication())
         _nextLevelConfig.value = config
         _levelDescription.value = LevelGenerator.getLevelDescription(config)
         _levelEmoji.value = LevelGenerator.getLevelEmoji(config)
@@ -118,6 +118,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return true
         }
         return false
+    }
+    
+    fun buyLife(): Boolean {
+        val progress = _playerProgress.value ?: return false
+        
+        if (progress.buyLife()) {
+            repository.saveProgress(progress)
+            _playerProgress.value = progress
+            generateShopItems()
+            return true
+        }
+        return false
+    }
+    
+    fun useLife(): Boolean {
+        val progress = _playerProgress.value ?: return false
+        
+        if (progress.useLife()) {
+            repository.saveProgress(progress)
+            _playerProgress.value = progress
+            return true
+        }
+        return false
+    }
+    
+    fun hasLives(): Boolean {
+        return _playerProgress.value?.hasLives() ?: false
     }
 
     private fun generateShopItems() {

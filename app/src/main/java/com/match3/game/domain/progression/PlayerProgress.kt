@@ -7,11 +7,16 @@ import com.match3.game.domain.model.*
 data class PlayerProgress(
     var currentLevel: Int = 1,
     var wallet: Int = 0,
+    var lives: Int = 5,
+    var maxLives: Int = 5,
     var gateMaterial: GateMaterial = GateMaterial.WOOD,
     var gateDurability: Int = GateMaterial.WOOD.baseDurability,
     var ownedPerks: MutableMap<PerkType, Int> = mutableMapOf(),
     var activePerks: MutableMap<PerkType, Int> = mutableMapOf() // Perk -> turns remaining
 ) {
+    companion object {
+        const val LIFE_COST = 10
+    }
     fun getGate(): Gate {
         return Gate(
             material = gateMaterial,
@@ -121,6 +126,30 @@ data class PlayerProgress(
     
     fun advanceLevel() {
         currentLevel++
+    }
+    
+    fun useLife(): Boolean {
+        if (lives > 0) {
+            lives--
+            return true
+        }
+        return false
+    }
+    
+    fun buyLife(): Boolean {
+        if (spendCurrency(LIFE_COST) && lives < maxLives) {
+            lives++
+            return true
+        }
+        return false
+    }
+    
+    fun hasLives(): Boolean = lives > 0
+    
+    fun refillLife() {
+        if (lives < maxLives) {
+            lives++
+        }
     }
 }
 
