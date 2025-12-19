@@ -256,6 +256,17 @@ class Board(
         }
     }
     
+    fun getRandomPositionExcluding(excluded: Set<Position>): Position {
+        val validPositions = getAllPositions().filter { 
+            it !in excluded && getCell(it)?.type == CellType.NORMAL && getCell(it)?.block != null 
+        }
+        return if (validPositions.isNotEmpty()) {
+            validPositions[rng.nextInt(validPositions.size)]
+        } else {
+            Position(height / 2, width / 2)
+        }
+    }
+    
     fun copy(): Board {
         val newBoard = Board(width, height, rng.fork())
         for (row in 0 until height) {

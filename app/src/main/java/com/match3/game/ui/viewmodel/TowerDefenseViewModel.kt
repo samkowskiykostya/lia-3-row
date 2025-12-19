@@ -110,10 +110,11 @@ class TowerDefenseViewModel : ViewModel() {
         _score.value = e.score
         _turnsRemaining.value = e.turnsRemaining
         _currentTurn.value = e.currentTurn
-        _isGameOver.value = e.isGameOver
-        _isVictory.value = e.isVictory
         _walletReward.value = e.getWalletReward()
         _gateDamageThisTurn.value = e.getGateDamagePerTurn()
+        // Set isVictory BEFORE isGameOver so observers see correct victory state
+        _isVictory.value = e.isVictory
+        _isGameOver.value = e.isGameOver
     }
 
     fun getPlayerBoard(): Board? = engine?.playerBoard

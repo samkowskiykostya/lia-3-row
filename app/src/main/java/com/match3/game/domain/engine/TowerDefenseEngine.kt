@@ -358,11 +358,13 @@ class TowerDefenseEngine(
             maxHp = config.hp
         )
         enemies.add(enemy)
+        emit(GameEvent.EnemySpawned(enemy.id, enemy.type, Position(enemy.row, enemy.col)))
     }
     
     private fun moveEnemies() {
         for (enemy in enemies) {
             if (!enemy.isAtGate && enemy.hp > 0) {
+                val oldRow = enemy.row
                 enemy.row++
                 
                 // Check if reached gate (row >= ENEMY_FIELD_HEIGHT)
@@ -370,6 +372,8 @@ class TowerDefenseEngine(
                     enemy.isAtGate = true
                     enemy.row = ENEMY_FIELD_HEIGHT - 1
                 }
+                
+                emit(GameEvent.EnemyMoved(enemy.id, Position(oldRow, enemy.col), Position(enemy.row, enemy.col)))
             }
         }
     }

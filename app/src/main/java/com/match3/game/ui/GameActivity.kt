@@ -194,16 +194,34 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
                         // No delay - score popups are non-blocking
                     }
                     is GameEvent.MultiplierIncreased -> {
-                        // Show pulsating multiplier animation
+                        // Show golden celebration multiplier animation
                         binding.multiplierText.text = "×${String.format("%.1f", event.newMultiplier)}"
+                        binding.multiplierText.alpha = 0f
+                        binding.multiplierText.scaleX = 0.3f
+                        binding.multiplierText.scaleY = 0.3f
                         binding.multiplierText.visibility = View.VISIBLE
+                        
+                        // Burst in animation
                         binding.multiplierText.animate()
-                            .scaleX(1.5f).scaleY(1.5f)
-                            .setDuration(100)
+                            .alpha(1f)
+                            .scaleX(1.2f).scaleY(1.2f)
+                            .setDuration(200)
                             .withEndAction {
+                                // Settle animation
                                 binding.multiplierText.animate()
                                     .scaleX(1f).scaleY(1f)
-                                    .setDuration(100)
+                                    .setDuration(150)
+                                    .withEndAction {
+                                        // Fade out after a moment
+                                        binding.multiplierText.animate()
+                                            .alpha(0f)
+                                            .setStartDelay(300)
+                                            .setDuration(200)
+                                            .withEndAction {
+                                                binding.multiplierText.visibility = View.GONE
+                                            }
+                                            .start()
+                                    }
                                     .start()
                             }
                             .start()

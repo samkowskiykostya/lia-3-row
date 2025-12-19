@@ -217,9 +217,9 @@ class SpecialActivator(
             
             // Rocket + Propeller = Propeller carries rocket to destination, then fires
             specialType1.isRocket() && specialType2 == SpecialType.PROPELLER -> {
-                val propellerPos = if (type1 == SpecialType.PROPELLER) pos1 else pos2
                 val rocketType = if (type1.isRocket()) type1 else type2
-                val target = board.findNearestSpecial(targetPos) ?: board.getRandomPosition()
+                // Find a random target that's not the current positions
+                val target = board.getRandomPositionExcluding(setOf(pos1, pos2))
                 
                 destroyed.add(pos1)
                 destroyed.add(pos2)
@@ -235,7 +235,8 @@ class SpecialActivator(
                         destroyed.add(Position(row, target.col))
                     }
                 }
-                events.add(GameEvent.PropellerCarrying(propellerPos, target, rocketType))
+                // Propeller flies from targetPos (where combo activated) to target
+                events.add(GameEvent.PropellerCarrying(targetPos, target, rocketType))
                 events.add(GameEvent.RocketFired(target, isHorizontal, destroyed))
             }
             
@@ -318,6 +319,9 @@ class SpecialActivator(
                     }
                 }
                 
+                // Emit disco activation first
+                events.add(GameEvent.DiscoActivated(targetPos, targetColor, colorPositions.toSet()))
+                
                 // Each position becomes a propeller and activates
                 // Propeller destroys itself + 4 cells around it (cross pattern), then flies to target
                 for (propP in colorPositions) {
@@ -328,20 +332,25 @@ class SpecialActivator(
                     }
                     
                     // Then fly to random target and destroy there too
-                    val target = board.getRandomPosition()
-                    destroyed.add(target)
+                    val target = board.getRandomPositionExcluding(destroyed)
+                    val propellerDestroyed = mutableSetOf(propP, target)
                     for (adjPos in target.getCross()) {
-                        if (board.isValidPosition(adjPos)) destroyed.add(adjPos)
+                        if (board.isValidPosition(adjPos)) {
+                            destroyed.add(adjPos)
+                            propellerDestroyed.add(adjPos)
+                        }
                     }
+                    destroyed.add(target)
+                    
+                    // Emit individual propeller flight event for animation
+                    events.add(GameEvent.PropellerFlew(propP, target, propellerDestroyed))
                 }
-                
-                events.add(GameEvent.DiscoActivated(targetPos, targetColor, destroyed))
             }
             
-            // Propeller + Bomb = Propeller carries bomb (Propeller ordinal=4, Bomb ordinal=5)
+            // Propeller + Bomb = Propeller carries bomb to random destination
             specialType1 == SpecialType.PROPELLER && specialType2 == SpecialType.BOMB -> {
-                val propellerPos = if (type1 == SpecialType.PROPELLER) pos1 else pos2
-                val target = board.findNearestSpecial(targetPos) ?: board.getRandomPosition()
+                // Find a random target that's not the current positions
+                val target = board.getRandomPositionExcluding(setOf(pos1, pos2))
                 
                 destroyed.add(pos1)
                 destroyed.add(pos2)
@@ -349,7 +358,8 @@ class SpecialActivator(
                 for (p in target.get3x3Area()) {
                     if (board.isValidPosition(p)) destroyed.add(p)
                 }
-                events.add(GameEvent.PropellerCarrying(propellerPos, target, SpecialType.BOMB))
+                // Propeller flies from targetPos (where combo activated) to target
+                events.add(GameEvent.PropellerCarrying(targetPos, target, SpecialType.BOMB))
                 events.add(GameEvent.BombExploded(target, destroyed))
             }
             

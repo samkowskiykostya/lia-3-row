@@ -292,9 +292,59 @@ class EnemyFieldView @JvmOverloads constructor(
         }
     }
 
+    // Track which enemies are being animated
+    private val damagedEnemies = mutableSetOf<Int>()
+    private val dyingEnemies = mutableSetOf<Int>()
+    private val spawningEnemies = mutableSetOf<Int>()
+    
+    fun animateEnemySpawn(enemyId: Int) {
+        spawningEnemies.add(enemyId)
+        
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            addUpdateListener { invalidate() }
+            duration = 200
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    spawningEnemies.remove(enemyId)
+                    invalidate()
+                }
+            })
+            start()
+        }
+    }
+    
     fun animateEnemyDamage(enemyId: Int) {
-        // Flash effect handled by redraw
-        invalidate()
+        damagedEnemies.add(enemyId)
+        
+        // Flash red effect
+        ValueAnimator.ofFloat(0f, 1f, 0f).apply {
+            addUpdateListener { invalidate() }
+            duration = 200
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    damagedEnemies.remove(enemyId)
+                    invalidate()
+                }
+            })
+            start()
+        }
+    }
+    
+    fun animateEnemyDeath(enemyId: Int) {
+        dyingEnemies.add(enemyId)
+        
+        // Fade out and shrink
+        ValueAnimator.ofFloat(1f, 0f).apply {
+            addUpdateListener { invalidate() }
+            duration = 300
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    dyingEnemies.remove(enemyId)
+                    invalidate()
+                }
+            })
+            start()
+        }
     }
 
     fun animateGateDamage() {

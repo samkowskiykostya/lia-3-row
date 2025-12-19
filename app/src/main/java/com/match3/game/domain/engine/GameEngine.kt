@@ -78,19 +78,21 @@ class GameEngine(
         val type1 = block1?.specialType ?: SpecialType.NONE
         val type2 = block2?.specialType ?: SpecialType.NONE
         
-        // Perform swap
-        board.setBlock(pos1, block2)
-        board.setBlock(pos2, block1)
+        // RULE: Special blocks ALWAYS activate when moved directly
+        // They swap first, then activate from the NEW position
         
-        emit(GameEvent.BlocksSwapped(pos1, pos2))
-        
-        // Check for special combos first (use original types, pos2 is the target)
+        // Check for special combos first (two specials touching)
         if (special1 && special2) {
-            // Special combo - pos1 is source (dragged from), pos2 is target (dragged to)
-            // type1 was at pos1 (now at pos2), type2 was at pos2 (now at pos1)
+            // Swap the blocks first
+            board.setBlock(pos1, block2)
+            board.setBlock(pos2, block1)
+            emit(GameEvent.BlocksSwapped(pos1, pos2))
+            
+            // Special combo activates at pos2 (where user dragged TO)
+            // block1 (was at pos1) is now at pos2
             val result = specialActivator.activateCombo(
-                pos1, type1,  // Original block from pos1
-                pos2, type2   // Original block from pos2 (target)
+                pos2, type1,  // block1 is now at pos2
+                pos1, type2   // block2 is now at pos1
             )
             processActivationResult(result)
             resolveBoard(null)
@@ -98,23 +100,48 @@ class GameEngine(
             return true
         }
         
+        // If the block being moved (pos1) is special, swap first then activate from new position
+        if (special1) {
+            // Swap the blocks first - special moves to pos2
+            board.setBlock(pos1, block2)
+            board.setBlock(pos2, block1)
+            emit(GameEvent.BlocksSwapped(pos1, pos2))
+            
+            // Activate the special from its NEW position (pos2)
+            val result = specialActivator.activateSpecial(pos2, pos1)
+            processActivationResult(result)
+            resolveBoard(null)
+            consumeTurn()
+            return true
+        }
+        
+        // If target (pos2) is special, swap first then activate
+        if (special2) {
+            // Swap the blocks first - special moves to pos1
+            board.setBlock(pos1, block2)
+            board.setBlock(pos2, block1)
+            emit(GameEvent.BlocksSwapped(pos1, pos2))
+            
+            // Activate the special from its NEW position (pos1)
+            val result = specialActivator.activateSpecial(pos1, pos2)
+            processActivationResult(result)
+            resolveBoard(null)
+            consumeTurn()
+            return true
+        }
+        
+        // Normal blocks - perform swap
+        board.setBlock(pos1, block2)
+        board.setBlock(pos2, block1)
+        
+        emit(GameEvent.BlocksSwapped(pos1, pos2))
+        
         // Check if swap creates a match
         val matchesAtPos1 = matchFinder.findMatchesAt(pos1)
         val matchesAtPos2 = matchFinder.findMatchesAt(pos2)
         
         if (matchesAtPos1.isEmpty() && matchesAtPos2.isEmpty()) {
-            // No match - check if either block is special (tap activation)
-            if (special1 || special2) {
-                val specialPos = if (special2) pos1 else pos2
-                val otherPos = if (special2) pos2 else pos1
-                val result = specialActivator.activateSpecial(specialPos, otherPos)
-                processActivationResult(result)
-                resolveBoard(null)
-                consumeTurn()
-                return true
-            }
-            
-            // Swap back
+            // No match - swap back
             board.setBlock(pos1, block1)
             board.setBlock(pos2, block2)
             return false
@@ -147,7 +174,19 @@ class GameEngine(
     private fun processActivationResult(result: SpecialActivator.ActivationResult) {
         for (e in result.events) emit(e)
         
-        // Destroy blocks and damage cells
+        // Collect all chained activations BEFORE destroying blocks
+        // This ensures we can still read the special types from the board
+        val chainedResults = mutableListOf<SpecialActivator.ActivationResult>()
+        for ((chainPos, chainType) in result.chainedActivations) {
+            val block = board.getBlock(chainPos)
+            if (block != null && block.isSpecial()) {
+                // Activate the chained special and collect its result
+                val chainResult = specialActivator.activateSpecial(chainPos)
+                chainedResults.add(chainResult)
+            }
+        }
+        
+        // Now destroy blocks from this activation
         for (pos in result.destroyedPositions) {
             val block = board.getBlock(pos)
             if (block != null) {
@@ -171,12 +210,9 @@ class GameEngine(
         
         emit(GameEvent.BlocksDestroyed(result.destroyedPositions))
         
-        // Process chained activations
-        for ((chainPos, chainType) in result.chainedActivations) {
-            if (board.getBlock(chainPos) != null) {
-                val chainResult = specialActivator.activateSpecial(chainPos)
-                processActivationResult(chainResult)
-            }
+        // Process the collected chained activations recursively
+        for (chainResult in chainedResults) {
+            processActivationResult(chainResult)
         }
     }
     
@@ -212,9 +248,35 @@ class GameEngine(
             cascadeLevel++
             emit(GameEvent.CascadeStarted(cascadeLevel))
             
-            // Process each match
+            // PHASE 1: Emit ALL BlocksMatched events first (for simultaneous highlighting)
+            val allMatchedPositions = mutableSetOf<Position>()
             for (match in matches) {
-                processMatch(match)
+                emit(GameEvent.BlocksMatched(match.positions, match.color))
+                allMatchedPositions.addAll(match.positions)
+            }
+            
+            // PHASE 2: Process each match (destruction, special creation)
+            // Collect all positions to destroy and specials to create
+            val allDestroyedPositions = mutableSetOf<Position>()
+            val specialsToCreate = mutableListOf<Triple<Position, SpecialType, BlockColor>>()
+            
+            for (match in matches) {
+                val (destroyed, special) = processMatchDestruction(match)
+                allDestroyedPositions.addAll(destroyed)
+                special?.let { specialsToCreate.add(it) }
+            }
+            
+            // Emit single destruction event for all matches
+            if (allDestroyedPositions.isNotEmpty()) {
+                emit(GameEvent.BlocksDestroyed(allDestroyedPositions))
+            }
+            
+            // Create specials after destruction
+            for ((pos, type, color) in specialsToCreate) {
+                val specialBlock = Block(color = color, specialType = type)
+                board.setBlock(pos, specialBlock)
+                newlyCreatedSpecials.add(pos)
+                emit(GameEvent.SpecialCreated(pos, type, color))
             }
             
         } while (true)
@@ -227,9 +289,12 @@ class GameEngine(
         checkWinCondition()
     }
     
-    private fun processMatch(match: Match) {
-        emit(GameEvent.BlocksMatched(match.positions, match.color))
-        
+    /** 
+     * Process match destruction - returns destroyed positions and special to create.
+     * BlocksMatched already emitted in resolveBoard.
+     * @return Pair of (destroyed positions, special to create or null)
+     */
+    private fun processMatchDestruction(match: Match): Pair<Set<Position>, Triple<Position, SpecialType, BlockColor>?> {
         // Determine if a special should be created
         val specialType = when (match.type) {
             Match.MatchType.LINE_4 -> {
@@ -243,6 +308,7 @@ class GameEngine(
         }
         
         val creationPos = match.getCreationPosition()
+        val destroyedPositions = mutableSetOf<Position>()
         
         // Emit special forming event BEFORE destroying blocks (for animation)
         if (specialType != SpecialType.NONE) {
@@ -262,6 +328,7 @@ class GameEngine(
                 
                 addScore(1, pos)
                 board.setBlock(pos, null)
+                destroyedPositions.add(pos)
                 
                 // Remove from newly created if it was there
                 newlyCreatedSpecials.remove(pos)
@@ -271,15 +338,12 @@ class GameEngine(
             }
         }
         
-        emit(GameEvent.BlocksDestroyed(match.positions))
+        // Return info for batched processing
+        val specialInfo = if (specialType != SpecialType.NONE) {
+            Triple(creationPos, specialType, match.color)
+        } else null
         
-        // Create special block at creation position
-        if (specialType != SpecialType.NONE) {
-            val specialBlock = Block(color = match.color, specialType = specialType)
-            board.setBlock(creationPos, specialBlock)
-            newlyCreatedSpecials.add(creationPos) // Mark as newly created - can't detonate this turn
-            emit(GameEvent.SpecialCreated(creationPos, specialType, match.color))
-        }
+        return destroyedPositions to specialInfo
     }
     
     private var turnScore: Int = 0 // Score accumulated this turn for multiplier calculation

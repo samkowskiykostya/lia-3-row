@@ -77,21 +77,6 @@
 
     </LinearLayout>
 
-    <!-- Multiplier display -->
-    <TextView
-        android:id="@+id/multiplierText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="×1.0"
-        android:textColor="@color/game_purple"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/topBar" />
-
     <!-- Special cells remaining (for clear mode) -->
     <TextView
         android:id="@+id/specialCellsText"
@@ -104,7 +89,7 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/multiplierText" />
+        app:layout_constraintTop_toBottomOf="@id/topBar" />
 
     <!-- Game board -->
     <com.match3.game.ui.views.BoardView
@@ -116,6 +101,26 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/specialCellsText" />
+
+    <!-- Multiplier display - overlay on board with golden celebration style -->
+    <TextView
+        android:id="@+id/multiplierText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="×2.0"
+        android:textColor="#FFD700"
+        android:textSize="72sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        android:elevation="10dp"
+        android:shadowColor="#FF8C00"
+        android:shadowDx="0"
+        android:shadowDy="4"
+        android:shadowRadius="8"
+        app:layout_constraintBottom_toBottomOf="@id/boardView"
+        app:layout_constraintEnd_toEndOf="@id/boardView"
+        app:layout_constraintStart_toStartOf="@id/boardView"
+        app:layout_constraintTop_toTopOf="@id/boardView" />
 
     <!-- Game over overlay -->
     <FrameLayout

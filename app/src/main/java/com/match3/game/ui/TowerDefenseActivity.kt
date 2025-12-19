@@ -136,16 +136,34 @@ class TowerDefenseActivity : AppCompatActivity(), BoardView.BoardInteractionList
                     }
                     is GameEvent.ProjectileFired -> {
                         binding.enemyFieldView.animateProjectile(event.fromCol) {}
-                        delay(50)
+                        delay(100)
+                    }
+                    is GameEvent.EnemySpawned -> {
+                        // Update enemies list immediately when spawned
+                        viewModel.enemies.value?.let { binding.enemyFieldView.enemies = it }
+                        binding.enemyFieldView.animateEnemySpawn(event.enemyId)
+                        delay(100)
                     }
                     is GameEvent.EnemyDamaged -> {
+                        // Update enemies list immediately when damaged
+                        viewModel.enemies.value?.let { binding.enemyFieldView.enemies = it }
                         binding.enemyFieldView.animateEnemyDamage(event.enemyId)
+                        delay(100)
                     }
                     is GameEvent.EnemyDestroyed -> {
-                        // Enemy death animation
+                        // Update enemies list immediately when destroyed
+                        viewModel.enemies.value?.let { binding.enemyFieldView.enemies = it }
+                        binding.enemyFieldView.animateEnemyDeath(event.enemyId)
+                        delay(200)
+                    }
+                    is GameEvent.EnemyMoved -> {
+                        // Update enemies list when moved
+                        viewModel.enemies.value?.let { binding.enemyFieldView.enemies = it }
                         binding.enemyFieldView.invalidate()
+                        delay(50)
                     }
                     is GameEvent.GateDamaged -> {
+                        viewModel.gate.value?.let { binding.enemyFieldView.gate = it }
                         binding.enemyFieldView.animateGateDamage()
                         delay(100)
                     }
