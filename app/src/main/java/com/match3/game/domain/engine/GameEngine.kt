@@ -88,10 +88,10 @@ class GameEngine(
         
         // Check for special combos first (two specials touching)
         if (special1 && special2) {
-            // Swap the blocks first
+            // NO swap animation when both are special - just activate combo directly
+            // Swap the blocks silently
             board.setBlock(pos1, block2)
             board.setBlock(pos2, block1)
-            emit(GameEvent.BlocksSwapped(pos1, pos2))
             
             // Special combo activates at pos2 (where user dragged TO)
             // Pass positions in original order: pos1 is where drag started, pos2 is target
@@ -105,12 +105,11 @@ class GameEngine(
             return true
         }
         
-        // If the block being moved (pos1) is special, swap first then activate from new position
+        // If the block being moved (pos1) is special, NO swap animation - just activate
         if (special1) {
-            // Swap the blocks first - special moves to pos2
+            // Swap the blocks silently - special moves to pos2
             board.setBlock(pos1, block2)
             board.setBlock(pos2, block1)
-            emit(GameEvent.BlocksSwapped(pos1, pos2))
             
             // Activate the special from its NEW position (pos2)
             val result = specialActivator.activateSpecial(pos2, pos1)

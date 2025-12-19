@@ -166,9 +166,6 @@ class MainActivity : AppCompatActivity() {
             return
         }
         
-        // Use a life when starting a level
-        viewModel.useLife()
-        
         // Save game in progress state
         val repository = com.match3.game.data.GameRepository(this)
         repository.saveGameInProgress(config.levelNumber, config.mode.name)
@@ -208,8 +205,9 @@ class MainActivity : AppCompatActivity() {
             if (victory) {
                 Toast.makeText(this, "🎉 Level Complete! +$reward coins", Toast.LENGTH_LONG).show()
             } else {
-                // Life was already used when starting - no additional penalty
-                Toast.makeText(this, "😢 Level Failed", Toast.LENGTH_SHORT).show()
+                // Deduct life only on loss
+                viewModel.useLife()
+                Toast.makeText(this, "😢 Level Failed - Lost 1 life", Toast.LENGTH_SHORT).show()
             }
         }
     }

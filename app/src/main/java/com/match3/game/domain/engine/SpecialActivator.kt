@@ -228,11 +228,18 @@ class SpecialActivator(
             // Rocket + Propeller = Propeller carries rocket to destination, then fires
             specialType1.isRocket() && specialType2 == SpecialType.PROPELLER -> {
                 val rocketType = if (type1.isRocket()) type1 else type2
-                // Find a random target that's not the current positions
-                val target = board.getRandomPositionExcluding(setOf(pos1, pos2))
                 
+                // Destroy cross pattern at launch position (targetPos)
                 destroyed.add(pos1)
                 destroyed.add(pos2)
+                for (adjPos in targetPos.getCross()) {
+                    if (board.isValidPosition(adjPos)) {
+                        destroyed.add(adjPos)
+                    }
+                }
+                
+                // Find a random target that's not already destroyed
+                val target = board.getRandomPositionExcluding(destroyed)
                 
                 // Fire rocket from target position
                 val isHorizontal = rocketType == SpecialType.ROCKET_HORIZONTAL
@@ -356,11 +363,17 @@ class SpecialActivator(
             
             // Propeller + Bomb = Propeller carries bomb to random destination
             specialType1 == SpecialType.PROPELLER && specialType2 == SpecialType.BOMB -> {
-                // Find a random target that's not the current positions
-                val target = board.getRandomPositionExcluding(setOf(pos1, pos2))
-                
+                // Destroy cross pattern at launch position (targetPos)
                 destroyed.add(pos1)
                 destroyed.add(pos2)
+                for (adjPos in targetPos.getCross()) {
+                    if (board.isValidPosition(adjPos)) {
+                        destroyed.add(adjPos)
+                    }
+                }
+                
+                // Find a random target that's not already destroyed
+                val target = board.getRandomPositionExcluding(destroyed)
                 
                 for (p in target.get3x3Area()) {
                     if (board.isValidPosition(p)) destroyed.add(p)
@@ -386,25 +399,34 @@ class SpecialActivator(
                 events.add(GameEvent.DiscoActivated(targetPos, BlockColor.RED, destroyed))
             }
             
-            // Propeller + Propeller = Two propellers fly
+            // Propeller + Propeller = Two propellers fly from launch position
             specialType1 == SpecialType.PROPELLER && specialType2 == SpecialType.PROPELLER -> {
+                // Destroy cross pattern at launch position (targetPos)
                 destroyed.add(pos1)
                 destroyed.add(pos2)
+                for (adjPos in targetPos.getCross()) {
+                    if (board.isValidPosition(adjPos)) {
+                        destroyed.add(adjPos)
+                    }
+                }
                 
-                val target1 = board.findNearestSpecial(pos1) ?: board.getRandomPosition()
+                // First propeller flies to random target
+                val target1 = board.getRandomPositionExcluding(destroyed)
                 destroyed.add(target1)
                 for (adjPos in target1.getCross()) {
                     if (board.isValidPosition(adjPos)) destroyed.add(adjPos)
                 }
                 
-                val target2 = board.getRandomPosition()
+                // Second propeller flies to different random target
+                val target2 = board.getRandomPositionExcluding(destroyed)
                 destroyed.add(target2)
                 for (adjPos in target2.getCross()) {
                     if (board.isValidPosition(adjPos)) destroyed.add(adjPos)
                 }
                 
-                events.add(GameEvent.PropellerFlew(pos1, target1, destroyed))
-                events.add(GameEvent.PropellerFlew(pos2, target2, destroyed))
+                // Both propellers fly from targetPos (launch position)
+                events.add(GameEvent.PropellerFlew(targetPos, target1, destroyed))
+                events.add(GameEvent.PropellerFlew(targetPos, target2, destroyed))
             }
         }
         
