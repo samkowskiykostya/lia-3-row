@@ -5,6 +5,27 @@
 
 set -e
 
+REINSTALL_FIRST=false
+
+usage() {
+    echo "Usage: $0 [-r]"
+    echo "  -r  Uninstall the app via adb before installing the new build"
+}
+
+while getopts ":r" opt; do
+    case "$opt" in
+        r)
+            REINSTALL_FIRST=true
+            ;;
+        \?)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+shift $((OPTIND - 1))
+
 echo "=== Running Match-3 Android Game ==="
 
 if [ -z "$ANDROID_HOME" ]; then
@@ -151,6 +172,18 @@ echo "Building the app..."
 
 # Install the APK
 APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+PACKAGE_NAME="com.match3.game"
+
+if [ "$REINSTALL_FIRST" = true ]; then
+    echo ""
+    echo "Uninstalling existing app ($PACKAGE_NAME)..."
+    if adb $ADB_TARGET uninstall "$PACKAGE_NAME"; then
+        echo "Previous installation removed."
+    else
+        echo "Warning: Could not uninstall $PACKAGE_NAME (possibly not installed). Continuing..."
+    fi
+fi
+
 echo ""
 echo "Installing APK..."
 adb $ADB_TARGET install -r "$APK_PATH"

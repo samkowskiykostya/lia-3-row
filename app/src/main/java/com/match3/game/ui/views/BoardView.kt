@@ -78,6 +78,7 @@ class BoardView @JvmOverloads constructor(
     private val animatingBlocks = mutableMapOf<Position, BlockAnimation>()
     private val scorePopups = mutableListOf<ScorePopup>()
     private val explosions = mutableListOf<Explosion>()
+    private val lightnings = mutableListOf<Lightning>()
     
     // Highlight state
     private val highlightedPositions = mutableSetOf<Position>()
@@ -110,6 +111,16 @@ class BoardView @JvmOverloads constructor(
         var y: Float,
         var radius: Float = 0f,
         var alpha: Float = 1f
+    )
+    
+    data class Lightning(
+        val startX: Float,
+        val startY: Float,
+        val endX: Float,
+        val endY: Float,
+        var progress: Float = 0f,
+        var alpha: Float = 1f,
+        val color: Int = Color.parseColor("#FFA500") // Orange
     )
 
     private val gradientColors = intArrayOf(
@@ -196,6 +207,11 @@ class BoardView @JvmOverloads constructor(
             }
         }
 
+        // Draw lightning bolts
+        for (lightning in lightnings) {
+            drawLightning(canvas, lightning)
+        }
+        
         // Draw explosions
         for (explosion in explosions) {
             drawExplosion(canvas, explosion)
@@ -302,6 +318,44 @@ class BoardView @JvmOverloads constructor(
         }
     }
 
+    private fun drawLightning(canvas: Canvas, lightning: Lightning) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = cellSize * 0.15f
+            color = lightning.color
+            alpha = (lightning.alpha * 255).toInt()
+            strokeCap = Paint.Cap.ROUND
+        }
+        
+        // Draw jagged lightning bolt
+        val path = android.graphics.Path()
+        path.moveTo(lightning.startX, lightning.startY)
+        
+        val dx = lightning.endX - lightning.startX
+        val dy = lightning.endY - lightning.startY
+        val segments = 5
+        
+        for (i in 1..segments) {
+            val t = i.toFloat() / segments * lightning.progress
+            val x = lightning.startX + dx * t
+            val y = lightning.startY + dy * t
+            
+            // Add random offset for jagged effect
+            val offset = cellSize * 0.2f * kotlin.math.sin(i * 2.5f)
+            val perpX = -dy / kotlin.math.sqrt(dx * dx + dy * dy) * offset
+            val perpY = dx / kotlin.math.sqrt(dx * dx + dy * dy) * offset
+            
+            path.lineTo(x + perpX, y + perpY)
+        }
+        
+        canvas.drawPath(path, paint)
+        
+        // Draw glow effect
+        paint.strokeWidth = cellSize * 0.3f
+        paint.alpha = (lightning.alpha * 100).toInt()
+        canvas.drawPath(path, paint)
+    }
+    
     private fun drawExplosion(canvas: Canvas, explosion: Explosion) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
@@ -396,11 +450,19 @@ class BoardView @JvmOverloads constructor(
                             val finalOffsetX = (target.col - pos.col) * cellSize
                             val finalOffsetY = (target.row - pos.row) * cellSize
                             
+                            // Check if dragged block is special
+                            val draggedBlock = board?.getBlock(pos)
+                            val isDraggedSpecial = draggedBlock?.isSpecial() == true
+                            
                             animatingBlocks[pos] = BlockAnimation(offsetX = dragOffsetX, offsetY = dragOffsetY)
-                            animatingBlocks[target] = BlockAnimation(offsetX = -dragOffsetX, offsetY = -dragOffsetY)
+                            
+                            // Only animate target if dragged block is NOT special
+                            if (!isDraggedSpecial) {
+                                animatingBlocks[target] = BlockAnimation(offsetX = -dragOffsetX, offsetY = -dragOffsetY)
+                            }
                             
                             // Complete the swap animation
-                            animateSwapCompletion(pos, target, dragOffsetX, dragOffsetY) { 
+                            animateSwapCompletion(pos, target, dragOffsetX, dragOffsetY, isDraggedSpecial) { 
                                 // After animation, notify listener
                                 listener?.onSwap(pos, target)
                             }
@@ -443,7 +505,7 @@ class BoardView @JvmOverloads constructor(
         invalidate()
     }
     
-    private fun animateSwapCompletion(pos: Position, target: Position, currentOffsetX: Float, currentOffsetY: Float, onComplete: () -> Unit) {
+    private fun animateSwapCompletion(pos: Position, target: Position, currentOffsetX: Float, currentOffsetY: Float, isDraggedSpecial: Boolean, onComplete: () -> Unit) {
         val finalOffsetX = (target.col - pos.col) * cellSize
         val finalOffsetY = (target.row - pos.row) * cellSize
         
@@ -453,7 +515,11 @@ class BoardView @JvmOverloads constructor(
                 val offsetX = currentOffsetX + (finalOffsetX - currentOffsetX) * progress
                 val offsetY = currentOffsetY + (finalOffsetY - currentOffsetY) * progress
                 animatingBlocks[pos] = BlockAnimation(offsetX = offsetX, offsetY = offsetY)
-                animatingBlocks[target] = BlockAnimation(offsetX = -offsetX, offsetY = -offsetY)
+                
+                // Only animate target if dragged block is not special
+                if (!isDraggedSpecial) {
+                    animatingBlocks[target] = BlockAnimation(offsetX = -offsetX, offsetY = -offsetY)
+                }
                 invalidate()
             }
             duration = 100
@@ -718,17 +784,17 @@ class BoardView @JvmOverloads constructor(
         highlightedPositions.addAll(positions)
         highlightColor = Color.WHITE
         
-        // Two quick blinks
-        ValueAnimator.ofFloat(0f, 1f, 0f, 1f, 0f).apply {
+        // Single white flash
+        ValueAnimator.ofFloat(0f, 1f).apply {
             addUpdateListener { animator ->
                 val value = animator.animatedValue as Float
                 highlightColor = Color.argb(
-                    (value * 200).toInt(),
+                    (value * 255).toInt(),
                     255, 255, 255
                 )
                 invalidate()
             }
-            duration = 200
+            duration = 150
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
                     highlightedPositions.clear()
@@ -817,46 +883,75 @@ class BoardView @JvmOverloads constructor(
     }
 
     fun animateRocket(pos: Position, isHorizontal: Boolean, onComplete: () -> Unit) {
-        // Simple flash effect for now
-        val positions = mutableSetOf<Position>()
         val b = board ?: run {
             onComplete()
             return
         }
-
+        
+        val centerX = boardOffsetX + pos.col * cellSize + cellSize / 2
+        val centerY = boardOffsetY + pos.row * cellSize + cellSize / 2
+        
+        // Create lightning bolts along the row/column
+        val tempLightnings = mutableListOf<Lightning>()
+        
         if (isHorizontal) {
-            for (col in 0 until b.width) {
-                positions.add(Position(pos.row, col))
-            }
+            // Horizontal lightning across the row
+            val startX = boardOffsetX
+            val endX = boardOffsetX + b.width * cellSize
+            val lightning = Lightning(startX, centerY, endX, centerY, color = Color.parseColor("#FFA500")) // Orange
+            tempLightnings.add(lightning)
+            lightnings.add(lightning)
         } else {
-            for (row in 0 until b.height) {
-                positions.add(Position(row, pos.col))
-            }
+            // Vertical lightning down the column
+            val startY = boardOffsetY
+            val endY = boardOffsetY + b.height * cellSize
+            val lightning = Lightning(centerX, startY, centerX, endY, color = Color.parseColor("#FFA500")) // Orange
+            tempLightnings.add(lightning)
+            lightnings.add(lightning)
         }
-
-        animateDestroy(positions, onComplete)
-    }
-
-    fun animatePropeller(from: Position, to: Position, onComplete: () -> Unit) {
-        animatingBlocks[from] = BlockAnimation()
-
-        val startX = boardOffsetX + from.col * cellSize
-        val startY = boardOffsetY + from.row * cellSize
-        val endX = boardOffsetX + to.col * cellSize
-        val endY = boardOffsetY + to.row * cellSize
 
         ValueAnimator.ofFloat(0f, 1f).apply {
             addUpdateListener { animator ->
                 val progress = animator.animatedValue as Float
-                animatingBlocks[from]?.offsetX = (endX - startX) * progress
-                animatingBlocks[from]?.offsetY = (endY - startY) * progress
-                animatingBlocks[from]?.rotation = progress * 720f
+                for (lightning in tempLightnings) {
+                    lightning.progress = progress
+                    lightning.alpha = 1f - progress * 0.7f
+                }
                 invalidate()
             }
-            duration = 600
+            duration = 150
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
-                    animatingBlocks.remove(from)
+                    for (lightning in tempLightnings) {
+                        lightnings.remove(lightning)
+                    }
+                    onComplete()
+                }
+            })
+            start()
+        }
+    }
+
+    fun animatePropeller(from: Position, to: Position, onComplete: () -> Unit) {
+        val startX = boardOffsetX + from.col * cellSize + cellSize / 2
+        val startY = boardOffsetY + from.row * cellSize + cellSize / 2
+        val endX = boardOffsetX + to.col * cellSize + cellSize / 2
+        val endY = boardOffsetY + to.row * cellSize + cellSize / 2
+
+        val lightning = Lightning(startX, startY, endX, endY, color = Color.parseColor("#00BFFF")) // Blue
+        lightnings.add(lightning)
+
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            addUpdateListener { animator ->
+                val progress = animator.animatedValue as Float
+                lightning.progress = progress
+                lightning.alpha = 1f - progress * 0.5f
+                invalidate()
+            }
+            duration = 200
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    lightnings.remove(lightning)
                     onComplete()
                 }
             })
@@ -865,31 +960,25 @@ class BoardView @JvmOverloads constructor(
     }
 
     fun animatePropellerCarrying(from: Position, to: Position, carryingType: SpecialType, onComplete: () -> Unit) {
-        // Animate propeller flying while carrying another special block
-        animatingBlocks[from] = BlockAnimation()
+        val startX = boardOffsetX + from.col * cellSize + cellSize / 2
+        val startY = boardOffsetY + from.row * cellSize + cellSize / 2
+        val endX = boardOffsetX + to.col * cellSize + cellSize / 2
+        val endY = boardOffsetY + to.row * cellSize + cellSize / 2
 
-        val startX = boardOffsetX + from.col * cellSize
-        val startY = boardOffsetY + from.row * cellSize
-        val endX = boardOffsetX + to.col * cellSize
-        val endY = boardOffsetY + to.row * cellSize
+        val lightning = Lightning(startX, startY, endX, endY, color = Color.parseColor("#00BFFF")) // Blue
+        lightnings.add(lightning)
 
         ValueAnimator.ofFloat(0f, 1f).apply {
             addUpdateListener { animator ->
                 val progress = animator.animatedValue as Float
-                animatingBlocks[from]?.offsetX = (endX - startX) * progress
-                animatingBlocks[from]?.offsetY = (endY - startY) * progress
-                animatingBlocks[from]?.rotation = progress * 720f
+                lightning.progress = progress
+                lightning.alpha = 1f - progress * 0.5f
                 invalidate()
             }
-            duration = 600
-            interpolator = AccelerateDecelerateInterpolator()
+            duration = 200
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
-                    animatingBlocks.remove(from)
-                    // Add explosion at destination
-                    val x = endX + cellSize / 2
-                    val y = endY + cellSize / 2
-                    explosions.add(Explosion(x, y))
+                    lightnings.remove(lightning)
                     onComplete()
                 }
             })

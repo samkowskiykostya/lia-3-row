@@ -122,19 +122,10 @@ class SpecialActivator(
         // Find target - nearest special or random block
         val target = board.findNearestSpecial(pos) ?: board.getRandomPosition()
         
-        // Then fly to target and destroy cross pattern there
+        // Then fly to target and destroy only that cell (not cross pattern)
         destroyed.add(target)
-        for (adjPos in target.getCross()) {
-            if (board.isValidPosition(adjPos)) {
-                val adjBlock = board.getBlock(adjPos)
-                if (adjBlock?.isSpecial() == true && adjPos != pos) {
-                    chained.add(adjPos to adjBlock.specialType)
-                }
-                destroyed.add(adjPos)
-            }
-        }
         
-        // Check if target itself is special
+        // Check if target is special for chaining
         val targetBlock = board.getBlock(target)
         if (targetBlock?.isSpecial() == true && target != pos) {
             chained.add(target to targetBlock.specialType)
@@ -344,17 +335,10 @@ class SpecialActivator(
                     // Only destroy the propeller position itself (no cross at launch)
                     destroyed.add(propP)
                     
-                    // Fly to random target and destroy cross pattern there
+                    // Fly to random target and destroy only that cell (not cross)
                     val target = board.getRandomPositionExcluding(destroyed)
                     val propellerDestroyed = mutableSetOf(propP, target)
                     destroyed.add(target)
-                    
-                    for (adjPos in target.getCross()) {
-                        if (board.isValidPosition(adjPos)) {
-                            destroyed.add(adjPos)
-                            propellerDestroyed.add(adjPos)
-                        }
-                    }
                     
                     // Emit individual propeller flight event for animation
                     events.add(GameEvent.PropellerFlew(propP, target, propellerDestroyed))
