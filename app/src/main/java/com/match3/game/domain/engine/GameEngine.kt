@@ -25,6 +25,21 @@ class GameEngine(
     private val frozenZoneCounters = mutableMapOf<Int, Int>()
     private val newlyCreatedSpecials = mutableSetOf<Position>() // Specials created this turn - can't detonate
     
+    // Step-by-step resolution state
+    private var resolutionState: ResolutionState = ResolutionState.IDLE
+    private var cascadeLevel: Int = 0
+    private var swappedToPosition: Position? = null
+    private var isFirstResolvePass: Boolean = true
+    
+    enum class ResolutionState {
+        IDLE,           // No resolution in progress
+        GRAVITY,        // Apply gravity
+        SPAWN,          // Spawn new blocks
+        MATCH,          // Find and process matches
+        SPECIAL_CHAIN,  // Process chained special activations
+        COMPLETE        // Resolution complete
+    }
+    
     init {
         rng = SeededRandom(config.seed)
         board = Board(config.boardWidth, config.boardHeight, rng)
@@ -100,7 +115,7 @@ class GameEngine(
                 pos2, type2   // Target position and type
             )
             processActivationResult(result)
-            resolveBoard(null)
+            startResolution(null)
             consumeTurn()
             return true
         }
@@ -114,7 +129,7 @@ class GameEngine(
             // Activate the special from its NEW position (pos2)
             val result = specialActivator.activateSpecial(pos2, pos1)
             processActivationResult(result)
-            resolveBoard(null)
+            startResolution(null)
             consumeTurn()
             return true
         }
@@ -152,7 +167,7 @@ class GameEngine(
         }
         
         // Process matches - pos2 is where user swiped TO
-        resolveBoard(pos2)
+        startResolution(pos2)
         consumeTurn()
         
         return true
@@ -169,7 +184,7 @@ class GameEngine(
         if (result.destroyedPositions.isEmpty()) return false
         
         processActivationResult(result)
-        resolveBoard(null)
+        startResolution(null)
         consumeTurn()
         
         return true
@@ -220,77 +235,135 @@ class GameEngine(
         }
     }
     
-    private fun resolveBoard(swappedTo: Position?) {
-        var cascadeLevel = 0
-        var isFirstPass = true
+    /**
+     * Start step-by-step board resolution
+     */
+    private fun startResolution(swappedTo: Position?) {
+        resolutionState = ResolutionState.GRAVITY
+        cascadeLevel = 0
+        swappedToPosition = swappedTo
+        isFirstResolvePass = true
         
-        do {
-            // Apply gravity
-            val movements = board.applyGravity()
-            if (movements.isNotEmpty()) {
-                emit(GameEvent.BlocksFell(movements))
+        // Don't process first step - let caller control when to step
+    }
+    
+    /**
+     * Process one step of board resolution. Call this after each animation completes.
+     * Returns true if more steps remain, false if resolution is complete.
+     */
+    fun processNextResolutionStep(): Boolean {
+        when (resolutionState) {
+            ResolutionState.IDLE -> {
+                return false
             }
             
-            // Spawn new blocks
-            val spawned = board.spawnNewBlocks()
-            if (spawned.isNotEmpty()) {
-                emit(GameEvent.BlocksSpawned(spawned))
+            ResolutionState.GRAVITY -> {
+                // Apply gravity
+                val movements = board.applyGravity()
+                if (movements.isNotEmpty()) {
+                    emit(GameEvent.BlocksFell(movements))
+                }
+                resolutionState = ResolutionState.SPAWN
+                return true
             }
             
-            // Find matches - only pass swappedTo on first pass (user-initiated)
-            val matches = if (isFirstPass && swappedTo != null) {
-                matchFinder.findAllMatchesWithSwapInfo(swappedTo)
-            } else {
-                matchFinder.findAllMatches()
-            }
-            isFirstPass = false
-            
-            if (matches.isEmpty()) {
-                break
+            ResolutionState.SPAWN -> {
+                // Spawn new blocks
+                val spawned = board.spawnNewBlocks()
+                if (spawned.isNotEmpty()) {
+                    emit(GameEvent.BlocksSpawned(spawned))
+                }
+                resolutionState = ResolutionState.MATCH
+                return true
             }
             
-            cascadeLevel++
-            emit(GameEvent.CascadeStarted(cascadeLevel))
-            
-            // PHASE 1: Emit ALL BlocksMatched events first (for simultaneous highlighting)
-            val allMatchedPositions = mutableSetOf<Position>()
-            for (match in matches) {
-                emit(GameEvent.BlocksMatched(match.positions, match.color))
-                allMatchedPositions.addAll(match.positions)
+            ResolutionState.MATCH -> {
+                // Find matches
+                val matches = if (isFirstResolvePass && swappedToPosition != null) {
+                    matchFinder.findAllMatchesWithSwapInfo(swappedToPosition!!)
+                } else {
+                    matchFinder.findAllMatches()
+                }
+                isFirstResolvePass = false
+                
+                if (matches.isEmpty()) {
+                    // No more matches - complete resolution
+                    resolutionState = ResolutionState.COMPLETE
+                    if (cascadeLevel > 0) {
+                        emit(GameEvent.CascadeEnded(cascadeLevel))
+                    }
+                    emit(GameEvent.BoardStabilized)
+                    checkWinCondition()
+                    resolutionState = ResolutionState.IDLE
+                    return false
+                }
+                
+                cascadeLevel++
+                emit(GameEvent.CascadeStarted(cascadeLevel))
+                
+                // PHASE 1: Emit ALL BlocksMatched events first
+                val allMatchedPositions = mutableSetOf<Position>()
+                for (match in matches) {
+                    emit(GameEvent.BlocksMatched(match.positions, match.color))
+                    allMatchedPositions.addAll(match.positions)
+                }
+                
+                // PHASE 2: Process each match (destruction, special creation)
+                val allDestroyedPositions = mutableSetOf<Position>()
+                val specialsToCreate = mutableListOf<Triple<Position, SpecialType, BlockColor>>()
+                
+                for (match in matches) {
+                    val (destroyed, special) = processMatchDestruction(match)
+                    allDestroyedPositions.addAll(destroyed)
+                    special?.let { specialsToCreate.add(it) }
+                }
+                
+                // Emit single destruction event
+                if (allDestroyedPositions.isNotEmpty()) {
+                    emit(GameEvent.BlocksDestroyed(allDestroyedPositions))
+                }
+                
+                // Create specials after destruction
+                for ((pos, type, color) in specialsToCreate) {
+                    val specialBlock = Block(color = color, specialType = type)
+                    board.setBlock(pos, specialBlock)
+                    newlyCreatedSpecials.add(pos)
+                    emit(GameEvent.SpecialCreated(pos, type, color))
+                }
+                
+                // Go back to gravity for next cascade
+                resolutionState = ResolutionState.GRAVITY
+                return true
             }
             
-            // PHASE 2: Process each match (destruction, special creation)
-            // Collect all positions to destroy and specials to create
-            val allDestroyedPositions = mutableSetOf<Position>()
-            val specialsToCreate = mutableListOf<Triple<Position, SpecialType, BlockColor>>()
-            
-            for (match in matches) {
-                val (destroyed, special) = processMatchDestruction(match)
-                allDestroyedPositions.addAll(destroyed)
-                special?.let { specialsToCreate.add(it) }
+            ResolutionState.SPECIAL_CHAIN -> {
+                // Reserved for future chained special activations
+                resolutionState = ResolutionState.GRAVITY
+                return true
             }
             
-            // Emit single destruction event for all matches
-            if (allDestroyedPositions.isNotEmpty()) {
-                emit(GameEvent.BlocksDestroyed(allDestroyedPositions))
+            ResolutionState.COMPLETE -> {
+                resolutionState = ResolutionState.IDLE
+                return false
             }
-            
-            // Create specials after destruction
-            for ((pos, type, color) in specialsToCreate) {
-                val specialBlock = Block(color = color, specialType = type)
-                board.setBlock(pos, specialBlock)
-                newlyCreatedSpecials.add(pos)
-                emit(GameEvent.SpecialCreated(pos, type, color))
-            }
-            
-        } while (true)
-        
-        if (cascadeLevel > 0) {
-            emit(GameEvent.CascadeEnded(cascadeLevel))
         }
+    }
+    
+    /**
+     * Check if resolution is in progress
+     */
+    fun isResolutionInProgress(): Boolean {
+        return resolutionState != ResolutionState.IDLE
+    }
+    
+    private fun resolveBoard(swappedTo: Position?) {
+        // Old method kept for compatibility - just calls step-by-step resolution in a loop
+        startResolution(swappedTo)
         
-        emit(GameEvent.BoardStabilized)
-        checkWinCondition()
+        // Process all steps until complete
+        while (processNextResolutionStep()) {
+            // Continue processing
+        }
     }
     
     /** 
