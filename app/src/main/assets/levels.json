@@ -5,12 +5,285 @@
       "mode": "SCORE_ACCUMULATION",
       "boardWidth": 7,
       "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...H...",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 2,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...B...",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 3,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...P...",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 4,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...D...",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 5,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...HV..",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 6,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...HB..",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 7,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...HP..",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 8,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...HD..",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 9,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...BB..",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 10,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...BP..",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 11,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...BD..",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 12,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...PD..",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 13,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
+      "maxTurns": 5,
+      "targetScore": 7,
+      "numColors": 3,
+      "initialBoard": [
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "...DD..",
+        ".......",
+        ".......",
+        ".......",
+        ".......",
+        "......."
+      ]
+    },
+    {
+      "levelNumber": 14,
+      "mode": "SCORE_ACCUMULATION",
+      "boardWidth": 7,
+      "boardHeight": 10,
       "maxTurns": 25,
       "targetScore": 1000,
       "numColors": 4
     },
     {
-      "levelNumber": 2,
+      "levelNumber": 15,
       "mode": "SCORE_ACCUMULATION",
       "boardWidth": 7,
       "boardHeight": 10,
@@ -19,7 +292,7 @@
       "numColors": 4
     },
     {
-      "levelNumber": 3,
+      "levelNumber": 16,
       "mode": "CLEAR_SPECIAL_CELLS",
       "boardWidth": 7,
       "boardHeight": 10,
@@ -35,7 +308,7 @@
       ]
     },
     {
-      "levelNumber": 5,
+      "levelNumber": 18,
       "mode": "TOWER_DEFENSE",
       "boardWidth": 7,
       "boardHeight": 8,
@@ -51,7 +324,7 @@
       ]
     },
     {
-      "levelNumber": 10,
+      "levelNumber": 23,
       "mode": "TOWER_DEFENSE",
       "boardWidth": 7,
       "boardHeight": 8,
@@ -71,7 +344,7 @@
       ]
     },
     {
-      "levelNumber": 20,
+      "levelNumber": 33,
       "mode": "TOWER_DEFENSE",
       "boardWidth": 7,
       "boardHeight": 8,

@@ -39,7 +39,12 @@ class GameEngine(
             frozenZoneCounters[zone.zoneId] = 0
         }
         
-        // Fill board without initial matches
+        // Initialize from layout if provided, otherwise fill randomly
+        if (config.initialBoard != null) {
+            board.initializeFromLayout(config.initialBoard)
+        }
+        
+        // Fill remaining empty cells without creating matches
         board.fillEmptyWithoutMatches()
     }
     
@@ -89,10 +94,10 @@ class GameEngine(
             emit(GameEvent.BlocksSwapped(pos1, pos2))
             
             // Special combo activates at pos2 (where user dragged TO)
-            // block1 (was at pos1) is now at pos2
+            // Pass positions in original order: pos1 is where drag started, pos2 is target
             val result = specialActivator.activateCombo(
-                pos2, type1,  // block1 is now at pos2
-                pos1, type2   // block2 is now at pos1
+                pos1, type1,  // Original position and type of dragged block
+                pos2, type2   // Target position and type
             )
             processActivationResult(result)
             resolveBoard(null)

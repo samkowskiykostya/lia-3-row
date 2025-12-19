@@ -107,13 +107,23 @@ class SpecialActivator(
         val events = mutableListOf<GameEvent>()
         val chained = mutableListOf<Pair<Position, SpecialType>>()
         
+        // First destroy cells around the propeller (cross pattern at launch position)
+        destroyed.add(pos)
+        for (adjPos in pos.getCross()) {
+            if (board.isValidPosition(adjPos)) {
+                val adjBlock = board.getBlock(adjPos)
+                if (adjBlock?.isSpecial() == true) {
+                    chained.add(adjPos to adjBlock.specialType)
+                }
+                destroyed.add(adjPos)
+            }
+        }
+        
         // Find target - nearest special or random block
         val target = board.findNearestSpecial(pos) ?: board.getRandomPosition()
         
-        // Destroy target and cross pattern
-        destroyed.add(pos)
+        // Then fly to target and destroy cross pattern there
         destroyed.add(target)
-        
         for (adjPos in target.getCross()) {
             if (board.isValidPosition(adjPos)) {
                 val adjBlock = board.getBlock(adjPos)
@@ -322,25 +332,22 @@ class SpecialActivator(
                 // Emit disco activation first
                 events.add(GameEvent.DiscoActivated(targetPos, targetColor, colorPositions.toSet()))
                 
-                // Each position becomes a propeller and activates
-                // Propeller destroys itself + 4 cells around it (cross pattern), then flies to target
+                // Each position becomes a propeller and flies (NO destruction at launch for disco+propeller)
                 for (propP in colorPositions) {
-                    // Destroy propeller position and its cross (4 adjacent cells)
+                    // Only destroy the propeller position itself (no cross at launch)
                     destroyed.add(propP)
-                    for (adjPos in propP.getCross()) {
-                        if (board.isValidPosition(adjPos)) destroyed.add(adjPos)
-                    }
                     
-                    // Then fly to random target and destroy there too
+                    // Fly to random target and destroy cross pattern there
                     val target = board.getRandomPositionExcluding(destroyed)
                     val propellerDestroyed = mutableSetOf(propP, target)
+                    destroyed.add(target)
+                    
                     for (adjPos in target.getCross()) {
                         if (board.isValidPosition(adjPos)) {
                             destroyed.add(adjPos)
                             propellerDestroyed.add(adjPos)
                         }
                     }
-                    destroyed.add(target)
                     
                     // Emit individual propeller flight event for animation
                     events.add(GameEvent.PropellerFlew(propP, target, propellerDestroyed))

@@ -70,6 +70,33 @@ class Board(
         return spawned
     }
     
+    /**
+     * Initialize board from string layout.
+     * Format: '.' = empty, 'R'/'G'/'b'/'Y' = colors, 'H'/'V' = rockets, 'B' = bomb, 'P' = propeller, 'D' = disco
+     */
+    fun initializeFromLayout(layout: List<String>) {
+        for (row in layout.indices) {
+            val rowStr = layout[row]
+            for (col in rowStr.indices) {
+                val pos = Position(row, col)
+                val char = rowStr[col]
+                
+                when (char) {
+                    '.' -> setBlock(pos, null) // Empty
+                    'H' -> setBlock(pos, Block(color = rng.nextBlockColor(), specialType = SpecialType.ROCKET_HORIZONTAL))
+                    'V' -> setBlock(pos, Block(color = rng.nextBlockColor(), specialType = SpecialType.ROCKET_VERTICAL))
+                    'B' -> setBlock(pos, Block(color = rng.nextBlockColor(), specialType = SpecialType.BOMB))
+                    'P' -> setBlock(pos, Block(color = rng.nextBlockColor(), specialType = SpecialType.PROPELLER))
+                    'D' -> setBlock(pos, Block(color = rng.nextBlockColor(), specialType = SpecialType.DISCO_BALL))
+                    'R' -> setBlock(pos, Block(color = BlockColor.RED))
+                    'G' -> setBlock(pos, Block(color = BlockColor.GREEN))
+                    'b' -> setBlock(pos, Block(color = BlockColor.BLUE))
+                    'Y' -> setBlock(pos, Block(color = BlockColor.YELLOW))
+                }
+            }
+        }
+    }
+    
     fun fillEmptyWithoutMatches(): List<Position> {
         val spawned = mutableListOf<Position>()
         for (col in 0 until width) {
