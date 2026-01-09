@@ -107,7 +107,7 @@ class SpecialActivator(
         val events = mutableListOf<GameEvent>()
         val chained = mutableListOf<Pair<Position, SpecialType>>()
         
-        // First destroy cells around the propeller (cross pattern at launch position)
+        // Destroy cross pattern at launch position (4 cells around + propeller itself)
         destroyed.add(pos)
         for (adjPos in pos.getCross()) {
             if (board.isValidPosition(adjPos)) {
@@ -119,15 +119,15 @@ class SpecialActivator(
             }
         }
         
-        // Find target - nearest special or random block
-        val target = board.findNearestSpecial(pos) ?: board.getRandomPosition()
+        // Find target - nearest special or random block (excluding already destroyed)
+        val target = board.getRandomPositionExcluding(destroyed)
         
-        // Then fly to target and destroy only that cell (not cross pattern)
+        // Destroy only the target cell (1 cell at destination)
         destroyed.add(target)
         
         // Check if target is special for chaining
         val targetBlock = board.getBlock(target)
-        if (targetBlock?.isSpecial() == true && target != pos) {
+        if (targetBlock?.isSpecial() == true) {
             chained.add(target to targetBlock.specialType)
         }
         
@@ -259,6 +259,9 @@ class SpecialActivator(
                 destroyed.add(pos2)
                 
                 val colorPositions = mutableListOf<Position>()
+                val horizontalPositions = mutableSetOf<Position>()
+                val rockets = mutableListOf<Pair<Position, Boolean>>()
+                
                 for (boardPos in board.getAllPositions()) {
                     val block = board.getBlock(boardPos)
                     if (block?.color == targetColor && boardPos != pos1 && boardPos != pos2) {
@@ -269,7 +272,9 @@ class SpecialActivator(
                 // Each position becomes a rocket and fires
                 for (rocketP in colorPositions) {
                     val isHorizontal = rng.nextBoolean()
+                    rockets.add(rocketP to isHorizontal)
                     if (isHorizontal) {
+                        horizontalPositions.add(rocketP)
                         for (col in 0 until board.width) {
                             destroyed.add(Position(rocketP.row, col))
                         }
@@ -280,7 +285,9 @@ class SpecialActivator(
                     }
                 }
                 
-                events.add(GameEvent.DiscoActivated(targetPos, targetColor, destroyed))
+                // Emit transformation event first, then simultaneous rocket fires
+                events.add(GameEvent.DiscoTransformToRockets(colorPositions.toSet(), targetColor, horizontalPositions))
+                events.add(GameEvent.SimultaneousRocketFires(rockets))
             }
             
             // Disco + Bomb = All cleared blocks become bombs (Disco ordinal=3, Bomb ordinal=5)
@@ -307,7 +314,9 @@ class SpecialActivator(
                     }
                 }
                 
-                events.add(GameEvent.DiscoActivated(targetPos, targetColor, destroyed))
+                // Emit transformation event first, then simultaneous explosions
+                events.add(GameEvent.DiscoTransformToBombs(colorPositions.toSet(), targetColor))
+                events.add(GameEvent.SimultaneousBombExplosions(colorPositions.toSet()))
             }
             
             // Disco + Propeller = All cleared blocks become propellers (Disco ordinal=3, Propeller ordinal=4)
@@ -320,6 +329,8 @@ class SpecialActivator(
                 destroyed.add(pos2)
                 
                 val colorPositions = mutableListOf<Position>()
+                val flights = mutableListOf<Pair<Position, Position>>()
+                
                 for (boardPos in board.getAllPositions()) {
                     val block = board.getBlock(boardPos)
                     if (block?.color == targetColor && boardPos != pos1 && boardPos != pos2) {
@@ -327,22 +338,20 @@ class SpecialActivator(
                     }
                 }
                 
-                // Emit disco activation first
-                events.add(GameEvent.DiscoActivated(targetPos, targetColor, colorPositions.toSet()))
-                
                 // Each position becomes a propeller and flies (NO destruction at launch for disco+propeller)
                 for (propP in colorPositions) {
-                    // Only destroy the propeller position itself (no cross at launch)
+                    // Only destroy the propeller position itself (no cross at launch for disco combo)
                     destroyed.add(propP)
                     
-                    // Fly to random target and destroy only that cell (not cross)
+                    // Fly to random target and destroy only that cell (1 cell at destination)
                     val target = board.getRandomPositionExcluding(destroyed)
-                    val propellerDestroyed = mutableSetOf(propP, target)
                     destroyed.add(target)
-                    
-                    // Emit individual propeller flight event for animation
-                    events.add(GameEvent.PropellerFlew(propP, target, propellerDestroyed))
+                    flights.add(propP to target)
                 }
+                
+                // Emit transformation event first, then simultaneous propeller flights
+                events.add(GameEvent.DiscoTransformToPropellers(colorPositions.toSet(), targetColor))
+                events.add(GameEvent.SimultaneousPropellerFlights(flights))
             }
             
             // Propeller + Bomb = Propeller carries bomb to random destination
@@ -394,19 +403,13 @@ class SpecialActivator(
                     }
                 }
                 
-                // First propeller flies to random target
+                // First propeller flies to random target (1 cell at destination)
                 val target1 = board.getRandomPositionExcluding(destroyed)
                 destroyed.add(target1)
-                for (adjPos in target1.getCross()) {
-                    if (board.isValidPosition(adjPos)) destroyed.add(adjPos)
-                }
                 
-                // Second propeller flies to different random target
+                // Second propeller flies to different random target (1 cell at destination)
                 val target2 = board.getRandomPositionExcluding(destroyed)
                 destroyed.add(target2)
-                for (adjPos in target2.getCross()) {
-                    if (board.isValidPosition(adjPos)) destroyed.add(adjPos)
-                }
                 
                 // Both propellers fly from targetPos (launch position)
                 events.add(GameEvent.PropellerFlew(targetPos, target1, destroyed))

@@ -251,6 +251,33 @@ class GameActivity : AppCompatActivity(), BoardView.BoardInteractionListener {
                         delay(300)
                         binding.boardView.board = boardAfter
                     }
+                    is GameEvent.DiscoTransformToBombs -> {
+                        binding.boardView.animateTransformToBombs(event.positions) {}
+                        delay(500)
+                    }
+                    is GameEvent.DiscoTransformToRockets -> {
+                        binding.boardView.animateTransformToRockets(event.positions, event.horizontalPositions) {}
+                        delay(500)
+                    }
+                    is GameEvent.DiscoTransformToPropellers -> {
+                        binding.boardView.animateTransformToPropellers(event.positions) {}
+                        delay(500)
+                    }
+                    is GameEvent.SimultaneousBombExplosions -> {
+                        binding.boardView.animateSimultaneousBombExplosions(event.centers) {}
+                        delay(250)
+                        binding.boardView.board = boardAfter
+                    }
+                    is GameEvent.SimultaneousRocketFires -> {
+                        binding.boardView.animateSimultaneousRocketFires(event.rockets) {}
+                        delay(250)
+                        binding.boardView.board = boardAfter
+                    }
+                    is GameEvent.SimultaneousPropellerFlights -> {
+                        binding.boardView.animateSimultaneousPropellerFlights(event.flights) {}
+                        delay(200)
+                        binding.boardView.board = boardAfter
+                    }
                     is GameEvent.ComboActivated -> {
                         binding.boardView.showComboText(event.type1, event.type2, event.position)
                         delay(150)
